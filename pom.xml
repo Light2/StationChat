@@ -21,27 +21,12 @@
         <artifactId>log4j-core</artifactId>
         <version>2.5</version>
       </dependency>
-      <dependency>
-  		<groupId>org.deephacks.lmdbjni</groupId>
-  		<artifactId>lmdbjni</artifactId>
-  		<version>0.4.5</version>
+	  <dependency>
+		 <groupId>org.fusesource.leveldbjni</groupId>
+		 <artifactId>leveldbjni-all</artifactId>
+		 <version>1.8</version>
 	  </dependency>
 	  <dependency>
-  		<groupId>org.deephacks.lmdbjni</groupId>
-  		<artifactId>lmdbjni-linux64</artifactId>
-  		<version>0.4.5</version>
-      </dependency>
-      <dependency>
-  		<groupId>org.deephacks.lmdbjni</groupId>
-  		<artifactId>lmdbjni-osx64</artifactId>
-  		<version>0.4.4</version>
-      </dependency>
-      <dependency>
-  		<groupId>org.deephacks.lmdbjni</groupId>
-  		<artifactId>lmdbjni-win64</artifactId>
-  		<version>0.4.5</version>
-      </dependency>
-      <dependency>
 		<groupId>com.lmax</groupId>
 		<artifactId>disruptor</artifactId>
 		<version>3.3.4</version>
@@ -49,6 +34,11 @@
 	  <dependency>
         <groupId>com.esotericsoftware</groupId>
         <artifactId>kryo</artifactId>
+        <version>3.0.3</version>
+      </dependency>
+      <dependency>
+        <groupId>net.sf.trove4j</groupId>
+        <artifactId>trove4j</artifactId>
         <version>3.0.3</version>
       </dependency>
   </dependencies>

@@ -2,12 +2,8 @@ package chat.protocol;
 
 public abstract class GenericRequest extends GenericMessage {
 	
-	private int track;
+	protected int track;
 	private long timeout;
-
-	public GenericRequest(short type) {
-		super(type);
-	}
 
 	public int getTrack() {
 		return track;

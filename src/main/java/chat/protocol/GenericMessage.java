@@ -1,6 +1,6 @@
 package chat.protocol;
 
-import io.netty.buffer.ByteBuf;
+import java.nio.ByteBuffer;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 
@@ -8,19 +8,20 @@ public abstract class GenericMessage {
 	
 	public static final ByteBufAllocator alloc = PooledByteBufAllocator.DEFAULT;
 	
-	private final short type;
+	protected short type;
 	
-	public GenericMessage(short type) {
-		this.type = type;
-	}
-
 	public final short getType() {
 		return type;
 	}
 	
-	public abstract ByteBuf serialize();
+	protected void writeSize(ByteBuffer buf) {
+		int size = buf.capacity();
+		buf.putInt(0, ((size & 0xff) << 24 | (size & 0xff00) << 8 | (size & 0xff0000) >> 8 | (size >> 24) & 0xff));
+	}
 	
-	public abstract void deserialize(ByteBuf buf);
+	public abstract ByteBuffer serialize();
+	
+	public abstract void deserialize(ByteBuffer buf);
 	
 	public static final short MESSAGE_INSTANTMESSAGE = 0;		
 	public static final short MESSAGE_ROOMMESSAGE = 1;

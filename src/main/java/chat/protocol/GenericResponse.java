@@ -4,13 +4,9 @@ import chat.protocol.response.ResponseResult;
 
 public abstract class GenericResponse extends GenericMessage {
 	
-	private int track;
+	protected int track;
 	private long timeout;
-	private ResponseResult result;
-
-	public GenericResponse(short type) {
-		super(type);
-	}
+	protected ResponseResult result = ResponseResult.CHATRESULT_TIMEOUT;
 
 	public int getTrack() {
 		return track;

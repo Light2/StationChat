@@ -1,5 +1,6 @@
 package chat;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import io.netty.buffer.ByteBuf;
@@ -119,29 +120,29 @@ public class PersistentMessage {
 		this.fetchResult = fetchResult;
 	}
 	
-	public ByteBuf serializeHeader() {
-		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
-		buf.writeInt(messageId);
-		buf.writeInt(avatarId);
-		buf.writeBytes(senderName.serialize());
-		buf.writeBytes(senderAddress.serialize());
-		buf.writeBytes(subject.serialize());
-		buf.writeInt(timestamp);
-		buf.writeInt(status);
+	public ByteBuffer serializeHeader() {
+		ByteBuffer buf = ByteBuffer.allocate(28 + senderName.getStringLength() * 2 + senderAddress.getStringLength() * 2 + subject.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
+		buf.putInt(messageId);
+		buf.putInt(avatarId);
+		buf.put(senderName.serialize());
+		buf.put(senderAddress.serialize());
+		buf.put(subject.serialize());
+		buf.putInt(timestamp);
+		buf.putInt(status);
 		return buf;
 	}
 	
-	public ByteBuf serialize() {
-		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
-		buf.writeInt(messageId);
-		buf.writeInt(avatarId);
-		buf.writeBytes(senderName.serialize());
-		buf.writeBytes(senderAddress.serialize());
-		buf.writeBytes(subject.serialize());
-		buf.writeInt(timestamp);
-		buf.writeInt(status);
-		buf.writeBytes(message.serialize());
-		buf.writeBytes(oob.serialize());
+	public ByteBuffer serialize() {
+		ByteBuffer buf =  ByteBuffer.allocate(36 + senderName.getStringLength() * 2 + senderAddress.getStringLength() * 2 + subject.getStringLength() * 2 + message.getStringLength() * 2 + oob.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
+		buf.putInt(messageId);
+		buf.putInt(avatarId);
+		buf.put(senderName.serialize());
+		buf.put(senderAddress.serialize());
+		buf.put(subject.serialize());
+		buf.putInt(timestamp);
+		buf.putInt(status);
+		buf.put(message.serialize());
+		buf.put(oob.serialize());
 		return buf;
 	}
 
