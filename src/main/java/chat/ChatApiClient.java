@@ -1,7 +1,9 @@
 package chat;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
+import chat.protocol.GenericMessage;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -23,11 +25,10 @@ public class ChatApiClient {
 	}
 
 	public void send(ByteBuffer byteBuffer) {
+		ByteBuf buf = GenericMessage.alloc.buffer(byteBuffer.capacity()).order(ByteOrder.LITTLE_ENDIAN);
 		byteBuffer.flip();
-		ChannelFuture future = channel.writeAndFlush(byteBuffer);
-		if(!future.isSuccess()) {
-			System.out.println(future.cause());
-		}
+		buf.writeBytes(byteBuffer);
+		channel.writeAndFlush(buf);
 	}
 
 }

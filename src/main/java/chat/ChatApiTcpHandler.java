@@ -3,12 +3,18 @@ package chat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+
+
 import chat.protocol.GenericRequest;
 import chat.protocol.request.RRegistrarGetChatServer;
+import chat.protocol.request.RSendApiVersion;
 import chat.protocol.response.ResRegistrarGetChatServer;
+import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
 import gnu.trove.map.TShortObjectMap;
@@ -45,6 +51,20 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
     		cluster.send(res.serialize());
     		logger.info("Registrar recieved GetChatServer requested");
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_SETAPIVERSION, (cluster, packet) -> {
+    		int version = server.getConfig().getInt("apiVersion");
+    		RSendApiVersion req = new RSendApiVersion();
+    		req.deserialize(packet);
+    		ResSendApiVersion res = new ResSendApiVersion();
+    		res.setTrack(req.getTrack());
+    		res.setVersion(version);
+    		if(version == req.getVersion()) {
+    			res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+    		} else {
+    			res.setResult(ResponseResult.CHATRESULT_WRONGCHATSERVERFORREQUEST);
+    		}
+    		cluster.send(res.serialize());
     	});
 	}
 
