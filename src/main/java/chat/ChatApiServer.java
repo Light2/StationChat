@@ -2,9 +2,14 @@ package chat;
 
 import io.netty.channel.Channel;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -15,11 +20,17 @@ import org.apache.logging.log4j.Logger;
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.Options;
+import org.iq80.leveldb.ReadOptions;
 
 import static org.fusesource.leveldbjni.JniDBFactory.*;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 
+import chat.protocol.request.RLoginAvatar;
+import chat.protocol.response.ResLoginAvatar;
+import chat.protocol.response.ResponseResult;
 import chat.util.Config;
 
 public class ChatApiServer {
@@ -41,6 +52,8 @@ public class ChatApiServer {
 	private DB avatarDb;
 	private DB chatRoomDb;
 	private DB mailDb;
+	private final Map<String, ChatAvatar> onlineAvatars = new HashMap<>();
+	private ExecutorService persister;
 	
 	public ChatApiServer() {
 		config = new Config("config.cfg");
@@ -56,6 +69,7 @@ public class ChatApiServer {
 	}
 	
 	private void start() throws IOException {
+		persister = Executors.newFixedThreadPool(config.getInt("persisterThreads"));
 		Options levelDbOptions = new Options();
 		levelDbOptions.createIfMissing(true);
 		levelDbOptions.cacheSize(config.getInt("levelDbCache"));
@@ -68,6 +82,73 @@ public class ChatApiServer {
 		gateway = new ChatApiTcpListener(config.getInt("gatewayPort"));
 		registrar.start();
 		gateway.start();
+	}
+	
+	public void handleLoginAvatar(ChatApiClient cluster, RLoginAvatar request) {
+		String fullAddress = request.getAddress().getString() + "+" + request.getName().getString();
+		ResLoginAvatar response = new ResLoginAvatar();
+		response.setTrack(request.getTrack());
+		if(onlineAvatars.get(fullAddress) != null) {
+			response.setResult(ResponseResult.CHATRESULT_DUPLICATELOGIN);
+			cluster.send(response.serialize());
+			return;
+		}
+		ChatAvatar avatar = getAvatarFromDatabase(fullAddress);
+		if(avatar != null) {
+			System.out.println("Got avatar from DB");
+			loginAvatar(cluster, avatar);
+		} else {
+			System.out.println("Creating new avatar");
+			avatar = createAvatar(cluster, request, fullAddress);
+		}
+		response.setAvatar(avatar);
+		response.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(response.serialize());
+
+	}
+	
+	private ChatAvatar createAvatar(ChatApiClient cluster, RLoginAvatar request, String fullAddress) {
+		ChatAvatar avatar = new ChatAvatar();
+		avatar.setAddress(request.getAddress());
+		avatar.setName(request.getName());
+		avatar.setAttributes(request.getLoginAttributes());
+		avatar.setLoginLocation(request.getLoginLocation());
+		avatar.setUserId(request.getUserId());
+		persistAvatar(avatar, false);
+		loginAvatar(cluster, avatar);
+		return avatar;
+	}
+	
+	public void persistAvatar(ChatAvatar avatar, boolean async) {
+		if(async)
+			persister.execute(() -> persistAvatar(avatar));
+		else
+			persistAvatar(avatar);
+	}
+	
+	private void persistAvatar(ChatAvatar avatar) {
+		Output output = new Output(new ByteArrayOutputStream());
+		kryos.get().writeClassAndObject(output, avatar);
+		avatarDb.put(avatar.getAddressAndName().getBytes(), output.toBytes());
+	}
+
+	private void loginAvatar(ChatApiClient cluster, ChatAvatar avatar) {
+		onlineAvatars.put(avatar.getAddressAndName(), avatar);
+		avatar.setCluster(cluster);
+		avatar.setLoggedIn(true);
+		//TODO: add chat room + friends status updates etc.
+	}
+
+	public ChatAvatar getAvatarFromDatabase(String fullAddress) {
+		byte[] buf = avatarDb.get(fullAddress.getBytes());
+		if(buf == null)
+			return null;
+		Input input = new Input(new ByteArrayInputStream(buf));
+		ChatAvatar avatar = (ChatAvatar) kryos.get().readClassAndObject(input);
+		input.close();
+		if(avatar == null)
+			return null;
+		return avatar;
 	}
 
 	public final Config getConfig() {
@@ -151,4 +232,17 @@ public class ChatApiServer {
 		connectedClusters.remove(getClusterByChannel(channel));
 		// TODO: add disconnect handling
 	}
+
+	public Map<String, ChatAvatar> getOnlineAvatars() {
+		return onlineAvatars;
+	}
+
+	public ExecutorService getPersister() {
+		return persister;
+	}
+
+	public void setPersister(ExecutorService persister) {
+		this.persister = persister;
+	}
+
 }

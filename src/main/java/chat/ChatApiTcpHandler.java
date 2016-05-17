@@ -5,12 +5,15 @@ import java.nio.ByteOrder;
 
 
 
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
 
+
 import chat.protocol.GenericRequest;
+import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RRegistrarGetChatServer;
 import chat.protocol.request.RSendApiVersion;
 import chat.protocol.response.ResRegistrarGetChatServer;
@@ -66,6 +69,13 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		}
     		cluster.send(res.serialize());
     	});
+    	packetTypes.put(GenericRequest.REQUEST_LOGINAVATAR, (cluster, packet) -> {
+    		RLoginAvatar req = new RLoginAvatar();
+    		req.deserialize(packet);
+    		System.out.println(req.getAddress().getString() + "+" + req.getName().getString());
+    		System.out.println(req.getLoginLocation().getString());
+    		System.out.println("Attributes: " + req.getLoginAttributes());
+    	});
 	}
 
 	@Override
@@ -80,8 +90,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     	//System.out.println(bytesToHex(packet.array()));
     	if(packet.capacity() < 6) {
     		logger.warn("Recieved packet of size < 6 bytes");
-    		System.out.println("test3");
-    		//System.out.println(bytesToHex(packet.array()));
+    		ctx.writeAndFlush(msg);
 			return;
     	}
     	if(cluster == null) {

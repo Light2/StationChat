@@ -1,5 +1,8 @@
 package chat;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 import gnu.trove.list.array.TIntArrayList;
 import chat.util.ChatUnicodeString;
 
@@ -13,8 +16,8 @@ public class ChatAvatar {
 
 	private ChatUnicodeString name;
 	private ChatUnicodeString address;
-	private ChatUnicodeString server;
-	private ChatUnicodeString gateway;
+	private ChatUnicodeString server = new ChatUnicodeString(); // can just be empty dont need
+	private ChatUnicodeString gateway = new ChatUnicodeString(); // can just be empty dont need
 	private ChatUnicodeString loginLocation;
 	private int avatarId;
 	private int userId; // station ID
@@ -127,6 +130,41 @@ public class ChatAvatar {
 
 	public void setMailIds(TIntArrayList mailIds) {
 		this.mailIds = mailIds;
+	}
+
+	public byte[] serialize() {
+		ByteBuffer buf = ByteBuffer.allocate(40 + name.getStringLength() + address.getStringLength() + loginLocation.getStringLength() + server.getStringLength() + gateway.getStringLength()).order(ByteOrder.LITTLE_ENDIAN);
+		buf.putInt(avatarId);
+		buf.putInt(userId);
+		buf.put(name.serialize());
+		buf.put(address.serialize());
+		buf.putInt(attributes);
+		buf.put(loginLocation.serialize());
+		buf.put(server.serialize());
+		buf.put(gateway.serialize());
+		buf.putInt(serverId);
+		buf.putInt(gatewayId);
+		return buf.array();
+	}
+	
+	public String getAddressAndName() {
+		return address.getString() + "+" + name.getString();
+	}
+	
+	public boolean isInvisible() {
+		return (getAttributes() & AVATARATTR_INVISIBLE) == 1;
+	}
+	
+	public boolean isGm() {
+		return (getAttributes() & AVATARATTR_GM) == 1;
+	}
+	
+	public boolean isSuperGm() {
+		return (getAttributes() & AVATARATTR_SUPERGM) == 1;
+	}
+	
+	public boolean isSuperSnoop() {
+		return (getAttributes() & AVATARATTR_SUPERSNOOP) == 1;
 	}
 
 }
