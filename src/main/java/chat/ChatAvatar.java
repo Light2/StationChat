@@ -133,7 +133,7 @@ public class ChatAvatar {
 	}
 
 	public byte[] serialize() {
-		ByteBuffer buf = ByteBuffer.allocate(40 + name.getStringLength() + address.getStringLength() + loginLocation.getStringLength() + server.getStringLength() + gateway.getStringLength()).order(ByteOrder.LITTLE_ENDIAN);
+		ByteBuffer buf = ByteBuffer.allocate(40 + name.getStringLength() * 2 + address.getStringLength() * 2 + loginLocation.getStringLength() * 2 + server.getStringLength() * 2 + gateway.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(avatarId);
 		buf.putInt(userId);
 		buf.put(name.serialize());

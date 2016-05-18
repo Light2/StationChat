@@ -6,18 +6,39 @@ import java.nio.ByteOrder;
 
 
 
+
+
+
+
+
+
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
 
 
+
+
+
+
+
+
+
 import chat.protocol.GenericRequest;
+import chat.protocol.request.RDestroyAvatar;
+import chat.protocol.request.RGetAnyAvatar;
+import chat.protocol.request.RGetAvatar;
 import chat.protocol.request.RLoginAvatar;
+import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RRegistrarGetChatServer;
 import chat.protocol.request.RSendApiVersion;
+import chat.protocol.request.RSendInstantMessage;
+import chat.protocol.request.RSetAvatarAttributes;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
+import chat.protocol.response.ResSetAvatarAttributes;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
 import gnu.trove.map.TShortObjectMap;
@@ -75,7 +96,48 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		System.out.println(req.getAddress().getString() + "+" + req.getName().getString());
     		System.out.println(req.getLoginLocation().getString());
     		System.out.println("Attributes: " + req.getLoginAttributes());
+    		server.handleLoginAvatar(cluster, req);
     	});
+    	packetTypes.put(GenericRequest.REQUEST_SENDINSTANTMESSAGE, (cluster, packet) -> {
+    		RSendInstantMessage req = new RSendInstantMessage();
+    		req.deserialize(packet);
+    		server.handleInstantMessage(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_LOGOUTAVATAR, (cluster, packet) -> {
+    		RLogoutAvatar req = new RLogoutAvatar();
+    		req.deserialize(packet);
+    		server.handleLogoutAvatar(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_DESTROYAVATAR, (cluster, packet) -> {
+    		RDestroyAvatar req = new RDestroyAvatar();
+    		req.deserialize(packet);
+    		server.handleDestroyAvatar(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_SETAVATARATTRIBUTES, (cluster, packet) -> {
+    		RSetAvatarAttributes req = new RSetAvatarAttributes();
+    		req.deserialize(packet);
+    		ResSetAvatarAttributes res = new ResSetAvatarAttributes();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+    			cluster.send(res.serialize());
+    		} else {
+    			res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+    			avatar.setAttributes(req.getAvatarAttributes());
+    			res.setAvatar(avatar);
+    			cluster.send(res.serialize());
+    		}
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETAVATAR, (cluster, packet) -> {
+    		// not used for SWG
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETANYAVATAR, (cluster, packet) -> {
+    		RGetAnyAvatar req = new RGetAnyAvatar();
+    		req.deserialize(packet);
+    		server.handleGetAnyAvatar(cluster, req);
+    	});
+
 	}
 
 	@Override
@@ -85,12 +147,14 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
 		ByteBuf unsafe = (ByteBuf) msg;
     	ByteBuffer packet = ByteBuffer.allocate(((ByteBuf) msg).readableBytes()).order(ByteOrder.LITTLE_ENDIAN);
 		//System.out.println(((ByteBuf) msg).readableBytes());
+    //	int idx = unsafe.readerIndex();
     	unsafe.getBytes(0, packet);
+    	//unsafe.readerIndex(idx);
     	packet.position(0);
-    	//System.out.println(bytesToHex(packet.array()));
-    	if(packet.capacity() < 6) {
+    	System.out.println(bytesToHex(packet.array()));
+    	if(packet.capacity() < 10) {
     		logger.warn("Recieved packet of size < 6 bytes");
-    		ctx.writeAndFlush(msg);
+    		ctx.writeAndFlush(unsafe);
 			return;
     	}
     	if(cluster == null) {
@@ -102,7 +166,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     	PacketHandler handler = packetTypes.get(type);
     	if(handler == null) {
     		logger.info("Unhandled packet type: {}", type);
-    		System.out.println(bytesToHex(packet.array()));
+    		System.out.println(type);
     		return;
     	}
     	// we are in the IO thread and the submit the handler function to the packet processor to avoid stalling IO operations

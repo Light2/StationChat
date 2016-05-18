@@ -16,6 +16,7 @@ public class ChatUnicodeString {
 	}
 
 	public ChatUnicodeString() {
+		string = new String();
 	}
 
 	public String getString() {
