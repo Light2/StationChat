@@ -18,8 +18,19 @@ import java.nio.ByteOrder;
 
 
 
+
+import java.util.Collection;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+
+
+
+
+
+
 
 
 
@@ -49,10 +60,15 @@ import chat.protocol.request.RSendApiVersion;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
 import chat.protocol.request.RSetAvatarAttributes;
+import chat.protocol.request.RUpdatePersistentMessage;
+import chat.protocol.request.RUpdatePersistentMessages;
+import chat.protocol.response.ResGetPersistentHeaders;
 import chat.protocol.response.ResGetPersistentMessage;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResSetAvatarAttributes;
+import chat.protocol.response.ResUpdatePersistentMessage;
+import chat.protocol.response.ResUpdatePersistentMessages;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
 import chat.util.PersistentMessageStatus;
@@ -181,15 +197,66 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
 			cluster.send(res.serialize());
     	});
     	packetTypes.put(GenericRequest.REQUEST_UPDATEPERSISTENTMESSAGE, (cluster, packet) -> {
-    		
+    		RUpdatePersistentMessage req = new RUpdatePersistentMessage();
+    		req.deserialize(packet);
+    		ResUpdatePersistentMessage res = new ResUpdatePersistentMessage();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		PersistentMessage pm = avatar.getPm(req.getMessageId());
+    		if(pm == null) {
+    			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		pm.setStatus(req.getStatus());
+    		if(pm.getStatus() == PersistentMessageStatus.DELETED)
+    			server.destroyPersistentMessage(avatar, pm);
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());
     	});
     	packetTypes.put(GenericRequest.REQUEST_UPDATEPERSISTENTMESSAGES, (cluster, packet) -> {
-    		
+    		RUpdatePersistentMessages req = new RUpdatePersistentMessages();
+    		req.deserialize(packet);
+    		ResUpdatePersistentMessages res = new ResUpdatePersistentMessages();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		Collection<PersistentMessage> pmList = avatar.getPmList().valueCollection();
+    		for(PersistentMessage pm : pmList) {
+    			if(pm.getStatus() == req.getCurrentStatus()) {
+    				pm.setStatus(req.getNewStatus());
+    	    		if(pm.getStatus() == PersistentMessageStatus.DELETED)
+    	    			server.destroyPersistentMessage(avatar, pm);
+    			}
+    		}
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());
     	});
     	packetTypes.put(GenericRequest.REQUEST_GETPERSISTENTHEADERS, (cluster, packet) -> {
+    		System.out.println("got request for headers");
     		RGetPersistentHeaders req = new RGetPersistentHeaders();
     		req.deserialize(packet);
-    		
+    		ResGetPersistentHeaders res = new ResGetPersistentHeaders();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		List<PersistentMessage> pmList = res.getPmList();
+    		pmList.addAll(avatar.getPmList().valueCollection());
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());   		
     	});
 	}
 

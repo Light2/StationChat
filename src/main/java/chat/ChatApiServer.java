@@ -216,8 +216,10 @@ public class ChatApiServer {
 		//TODO: add chat room + friends status updates etc.
 		for(int mailId : avatar.getMailIds().toArray()) {
 			PersistentMessage pm = getPersistentMessageFromDb(mailId);
+			if(pm == null)
+				continue;
 		    int daysUntilDelete = config.getInt("deleteMailTimerInDays");
-		    int elapsedDays = (int) TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - (pm.getTimestamp() * 1000));
+		    int elapsedDays = (int) TimeUnit.MILLISECONDS.toDays((System.currentTimeMillis() / 1000) - pm.getTimestamp());
 		    if(elapsedDays >= daysUntilDelete) {
 		    	destroyPersistentMessage(avatar, pm);
 		    	continue;
@@ -364,7 +366,7 @@ public class ChatApiServer {
 		if(persist)
 			persistAvatar(avatar, true);
 		//TODO: remove chat room + friends status updates etc.
-		for(PersistentMessage pm : (PersistentMessage[]) avatar.getPmList().values()) {
+		for(PersistentMessage pm : avatar.getPmList().valueCollection()) {
 			persistPersistentMessage(pm, true);
 		}
 		
@@ -391,7 +393,7 @@ public class ChatApiServer {
 		cluster.send(res.serialize());		
 	}
 	
-	private void destroyPersistentMessage(ChatAvatar avatar, PersistentMessage pm) {
+	public void destroyPersistentMessage(ChatAvatar avatar, PersistentMessage pm) {
 		avatar.removeMail(pm);
 		mailDb.delete(ByteBuffer.allocate(4).putInt(pm.getMessageId()).array());
 	}
