@@ -6,14 +6,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,19 +32,24 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
+import chat.protocol.message.MPersistentMessage;
 import chat.protocol.message.MSendInstantMessage;
 import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RSendInstantMessage;
+import chat.protocol.request.RSendPersistentMessage;
 import chat.protocol.response.ResDestroyAvatar;
 import chat.protocol.response.ResGetAnyAvatar;
 import chat.protocol.response.ResLoginAvatar;
 import chat.protocol.response.ResLogoutAvatar;
 import chat.protocol.response.ResSendInstantMessage;
+import chat.protocol.response.ResSendPersistentMessage;
 import chat.protocol.response.ResponseResult;
+import chat.util.ChatUnicodeString;
 import chat.util.Config;
+import chat.util.PersistentMessageStatus;
 
 public class ChatApiServer {
 	
@@ -56,6 +65,7 @@ public class ChatApiServer {
 	        return kryo;
 	    };
 	};
+
 	private ExecutorService packetProcessor = Executors.newSingleThreadExecutor();
 	private List<ChatApiClient> connectedClusters = new CopyOnWriteArrayList<>();
 	private DB avatarDb;
@@ -204,6 +214,16 @@ public class ChatApiServer {
 		avatar.setCluster(cluster);
 		avatar.setLoggedIn(true);
 		//TODO: add chat room + friends status updates etc.
+		for(int mailId : avatar.getMailIds().toArray()) {
+			PersistentMessage pm = getPersistentMessageFromDb(mailId);
+		    int daysUntilDelete = config.getInt("deleteMailTimerInDays");
+		    int elapsedDays = (int) TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - (pm.getTimestamp() * 1000));
+		    if(elapsedDays >= daysUntilDelete) {
+		    	destroyPersistentMessage(avatar, pm);
+		    	continue;
+		    }
+			avatar.getPmList().put(mailId, pm);
+		}
 	}
 
 	public ChatAvatar getAvatarFromDatabase(String fullAddress) {
@@ -344,8 +364,19 @@ public class ChatApiServer {
 		if(persist)
 			persistAvatar(avatar, true);
 		//TODO: remove chat room + friends status updates etc.
+		for(PersistentMessage pm : (PersistentMessage[]) avatar.getPmList().values()) {
+			persistPersistentMessage(pm, true);
+		}
+		
 	}
  
+	private void persistPersistentMessage(PersistentMessage pm, boolean async) {
+		if(async)
+			persister.execute(() -> persistPersistentMessage(pm));
+		else
+			persistPersistentMessage(pm);
+	}
+
 	public void handleDestroyAvatar(ChatApiClient cluster, RDestroyAvatar req) {
 		ResDestroyAvatar res = new ResDestroyAvatar();
 		res.setTrack(req.getTrack());
@@ -358,6 +389,11 @@ public class ChatApiServer {
 		destroyAvatar(avatar);
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		cluster.send(res.serialize());		
+	}
+	
+	private void destroyPersistentMessage(ChatAvatar avatar, PersistentMessage pm) {
+		avatar.removeMail(pm);
+		mailDb.delete(ByteBuffer.allocate(4).putInt(pm.getMessageId()).array());
 	}
 
 	private void destroyAvatar(ChatAvatar avatar) {
@@ -390,5 +426,93 @@ public class ChatApiServer {
 		res.setLoggedIn(false);
 		cluster.send(res.serialize());
 	}
+	
+	private int getNewPmId() {
+		boolean found = false;
+		int mailId = 0;
+		while(!found) {
+			mailId = ThreadLocalRandom.current().nextInt();
+			if(mailId != 0 && getPersistentMessageFromDb(mailId) == null)
+				found = true;
+		}
+		return mailId;
+	}
+	
+	private PersistentMessage getPersistentMessageFromDb(int messageId) {
+		byte[] key = ByteBuffer.allocate(4).putInt(messageId).array();
+		byte[] value = mailDb.get(key);
+		if(value == null)
+			return null;
+		Input input = new Input(new ByteArrayInputStream(value));
+		PersistentMessage pm = (PersistentMessage) kryos.get().readClassAndObject(input);
+		return pm;
+	}
+	
+	private void persistPersistentMessage(PersistentMessage pm) {
+		byte[] key = ByteBuffer.allocate(4).putInt(pm.getMessageId()).array();
+		Output output = new Output(new ByteArrayOutputStream());
+		kryos.get().writeClassAndObject(output, pm);
+		mailDb.put(key, output.toBytes());
+	}
 
+
+	public void handleSendPersistentMessage(ChatApiClient cluster, RSendPersistentMessage req) {
+		ResSendPersistentMessage res = new ResSendPersistentMessage();
+		res.setTrack(req.getTrack());
+		ChatAvatar srcAvatar = null;
+		if(req.isAvatarPresence() != 0) {
+			srcAvatar = getAvatarById(req.getSrcAvatarId());
+		} else {
+			srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + req.getSrcName());
+		}
+		if(srcAvatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;					
+		}
+		String destFullAdress = req.getDestAddress().getString() + "+" + req.getDestName().getString();
+		ChatAvatar destAvatar = onlineAvatars.get(destFullAdress);
+		if(destAvatar == null) {
+			destAvatar = getAvatarFromDatabase(destFullAdress);
+			if(destAvatar == null) {
+				res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+				cluster.send(res.serialize());
+				return;					
+			}
+		}
+		PersistentMessage pm = new PersistentMessage();
+		pm.setAvatarId(destAvatar.getAvatarId());
+		pm.setMessage(req.getMessage());
+		pm.setOob(req.getOob());
+		pm.setMessageId(getNewPmId());
+		pm.setCategory(req.getCategory());
+		pm.setSenderAddress(srcAvatar.getAddress());
+		pm.setSenderName(srcAvatar.getName());
+		pm.setStatus(PersistentMessageStatus.NEW);
+		pm.setSubject(req.getSubject());
+		pm.setTimestamp((int) (System.currentTimeMillis() / 1000));
+		persistPersistentMessage(pm);
+		destAvatar.addMail(pm);
+		System.out.println(req.getSubject().getString());
+		System.out.println(req.getMessage().getString());
+		System.out.println(req.getOob().getString());
+		
+		if(destAvatar.getCluster() != null && destAvatar.isLoggedIn()) {
+			MPersistentMessage msg = new MPersistentMessage();
+			msg.setPm(pm);
+			destAvatar.getCluster().send(msg.serialize());
+		}
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		res.setMessageId(pm.getMessageId());
+		cluster.send(res.serialize());
+	}
+	
+	public ChatApiClient getClusterByAddress(ChatUnicodeString address) {
+		for(ChatApiClient cluster : connectedClusters) {
+			if(cluster.getAddress().getString().equals(address.getString()))
+				return cluster;
+		}
+		return null;
+	}
+	
 }

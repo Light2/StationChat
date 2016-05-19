@@ -2,8 +2,12 @@ package chat;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 
 import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import chat.util.ChatUnicodeString;
 
 public class ChatAvatar {
@@ -27,6 +31,7 @@ public class ChatAvatar {
 	private transient boolean isLoggedIn = false;
 	private transient ChatApiClient cluster;
 	private TIntArrayList mailIds = new TIntArrayList();
+	private transient TIntObjectMap<PersistentMessage> pmList = new TIntObjectHashMap<>();
 	
 	public ChatUnicodeString getName() {
 		return name;
@@ -167,4 +172,26 @@ public class ChatAvatar {
 		return (getAttributes() & AVATARATTR_SUPERSNOOP) == 1;
 	}
 
+	public void addMail(PersistentMessage pm) {
+		mailIds.add(pm.getMessageId());
+		pmList.put(pm.getMessageId(), pm);
+	}
+
+	public TIntObjectMap<PersistentMessage> getPmList() {
+		return pmList;
+	}
+
+	public void setPmList(TIntObjectMap<PersistentMessage> pmList) {
+		this.pmList = pmList;
+	}
+	
+	public PersistentMessage getPm(int messageId) {
+		return pmList.get(messageId);
+	}
+
+	public void removeMail(PersistentMessage pm) {
+		pmList.remove(pm.getMessageId());
+		mailIds.remove(pm.getMessageId());
+	}
+	
 }

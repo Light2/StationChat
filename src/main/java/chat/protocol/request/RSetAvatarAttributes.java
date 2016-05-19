@@ -25,7 +25,7 @@ public class RSetAvatarAttributes extends GenericRequest {
 		avatarId = buf.getInt();
 		avatarAttributes = buf.getInt();
 		persistent = buf.get() != 0;
-		address.deserialize(buf);
+		//address.deserialize(buf);
 	}
 
 	public int getAvatarId() {

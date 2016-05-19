@@ -21,9 +21,10 @@ public class MSendInstantMessage extends GenericMessage {
 	@Override
 	public ByteBuffer serialize() {
 		byte[] avatarBuf = srcAvatar.serialize();
-		ByteBuffer buf = ByteBuffer.allocate(18 + avatarBuf.length + message.getStringLength() * 2 + oob.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
+		ByteBuffer buf = ByteBuffer.allocate(22 + avatarBuf.length + message.getStringLength() * 2 + oob.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(0);
 		buf.putShort(type);
+		buf.putInt(0);
 		buf.put(avatarBuf);
 		buf.putInt(destAvatarId);
 		buf.put(message.serialize());

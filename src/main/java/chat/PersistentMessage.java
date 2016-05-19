@@ -120,7 +120,7 @@ public class PersistentMessage {
 		this.fetchResult = fetchResult;
 	}
 	
-	public ByteBuffer serializeHeader() {
+	public byte[] serializeHeader() {
 		ByteBuffer buf = ByteBuffer.allocate(28 + senderName.getStringLength() * 2 + senderAddress.getStringLength() * 2 + subject.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(messageId);
 		buf.putInt(avatarId);
@@ -129,10 +129,10 @@ public class PersistentMessage {
 		buf.put(subject.serialize());
 		buf.putInt(timestamp);
 		buf.putInt(status);
-		return buf;
+		return buf.array();
 	}
 	
-	public ByteBuffer serialize() {
+	public byte[] serialize() {
 		ByteBuffer buf =  ByteBuffer.allocate(36 + senderName.getStringLength() * 2 + senderAddress.getStringLength() * 2 + subject.getStringLength() * 2 + message.getStringLength() * 2 + oob.getStringLength() * 2).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(messageId);
 		buf.putInt(avatarId);
@@ -143,7 +143,7 @@ public class PersistentMessage {
 		buf.putInt(status);
 		buf.put(message.serialize());
 		buf.put(oob.serialize());
-		return buf;
+		return buf.array();
 	}
 
 	

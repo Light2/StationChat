@@ -13,8 +13,18 @@ import java.nio.ByteOrder;
 
 
 
+
+
+
+
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+
+
+
+
 
 
 
@@ -30,17 +40,22 @@ import chat.protocol.GenericRequest;
 import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RGetAvatar;
+import chat.protocol.request.RGetPersistentHeaders;
+import chat.protocol.request.RGetPersistentMessage;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RRegistrarGetChatServer;
 import chat.protocol.request.RSendApiVersion;
 import chat.protocol.request.RSendInstantMessage;
+import chat.protocol.request.RSendPersistentMessage;
 import chat.protocol.request.RSetAvatarAttributes;
+import chat.protocol.response.ResGetPersistentMessage;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResSetAvatarAttributes;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
+import chat.util.PersistentMessageStatus;
 import gnu.trove.map.TShortObjectMap;
 import gnu.trove.map.hash.TShortObjectHashMap;
 import io.netty.buffer.ByteBuf;
@@ -93,6 +108,8 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     	packetTypes.put(GenericRequest.REQUEST_LOGINAVATAR, (cluster, packet) -> {
     		RLoginAvatar req = new RLoginAvatar();
     		req.deserialize(packet);
+    		if(cluster.getAddress() == null) // store the clusters address at first login since api client doesnt send us any address information otherwise
+    			cluster.setAddress(req.getAddress());
     		System.out.println(req.getAddress().getString() + "+" + req.getName().getString());
     		System.out.println(req.getLoginLocation().getString());
     		System.out.println("Attributes: " + req.getLoginAttributes());
@@ -129,15 +146,51 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     			cluster.send(res.serialize());
     		}
     	});
-    	packetTypes.put(GenericRequest.REQUEST_GETAVATAR, (cluster, packet) -> {
-    		// not used for SWG
-    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETAVATAR, (cluster, packet) -> {}); // not used for SWG
     	packetTypes.put(GenericRequest.REQUEST_GETANYAVATAR, (cluster, packet) -> {
     		RGetAnyAvatar req = new RGetAnyAvatar();
     		req.deserialize(packet);
     		server.handleGetAnyAvatar(cluster, req);
     	});
-
+    	packetTypes.put(GenericRequest.REQUEST_SENDPERSISTENTMESSAGE, (cluster, packet) -> {
+    		RSendPersistentMessage req = new RSendPersistentMessage();
+    		req.deserialize(packet);
+    		server.handleSendPersistentMessage(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETPERSISTENTMESSAGE, (cluster, packet) -> {
+    		RGetPersistentMessage req = new RGetPersistentMessage();
+    		req.deserialize(packet);
+    		ResGetPersistentMessage res = new ResGetPersistentMessage();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		PersistentMessage pm = avatar.getPm(req.getMessageId());
+    		if(pm == null) {
+    			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		if(pm.getStatus() == PersistentMessageStatus.NEW)
+    			pm.setStatus(PersistentMessageStatus.READ);
+    		res.setPm(pm);
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_UPDATEPERSISTENTMESSAGE, (cluster, packet) -> {
+    		
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_UPDATEPERSISTENTMESSAGES, (cluster, packet) -> {
+    		
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETPERSISTENTHEADERS, (cluster, packet) -> {
+    		RGetPersistentHeaders req = new RGetPersistentHeaders();
+    		req.deserialize(packet);
+    		
+    	});
 	}
 
 	@Override
@@ -161,7 +214,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
 			logger.warn("ChatApiClient object not found for given channel");
 			return;
 		}
-    	packet.getInt(); // probably length of packet
+    	packet.getInt(); //length of packet in big endian
     	short type = packet.getShort(4);
     	PacketHandler handler = packetTypes.get(type);
     	if(handler == null) {
