@@ -46,4 +46,8 @@ public class ChatUnicodeString {
 		return string.length();
 	}
 
+	public boolean equals(ChatUnicodeString string) {
+		return getString().equals(string.getString());
+	}
+	
 }

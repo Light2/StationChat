@@ -32,18 +32,28 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
+import chat.protocol.message.MFriendLogin;
+import chat.protocol.message.MFriendLogout;
 import chat.protocol.message.MPersistentMessage;
 import chat.protocol.message.MSendInstantMessage;
+import chat.protocol.request.RAddFriend;
+import chat.protocol.request.RAddIgnore;
 import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
+import chat.protocol.request.RRemoveFriend;
+import chat.protocol.request.RRemoveIgnore;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
+import chat.protocol.response.ResAddFriend;
+import chat.protocol.response.ResAddIgnore;
 import chat.protocol.response.ResDestroyAvatar;
 import chat.protocol.response.ResGetAnyAvatar;
 import chat.protocol.response.ResLoginAvatar;
 import chat.protocol.response.ResLogoutAvatar;
+import chat.protocol.response.ResRemoveFriend;
+import chat.protocol.response.ResRemoveIgnore;
 import chat.protocol.response.ResSendInstantMessage;
 import chat.protocol.response.ResSendPersistentMessage;
 import chat.protocol.response.ResponseResult;
@@ -167,10 +177,15 @@ public class ChatApiServer {
 			return;
 		}
 		ChatAvatar destAvatar = onlineAvatars.get(req.getDestAddress() + "+" + req.getDestName());
-		if(destAvatar == null) {
+		if(destAvatar == null || destAvatar.isInvisible()) {
 			res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
 			cluster.send(res.serialize());
 			return;
+		}
+		if(!srcAvatar.isGm() && !srcAvatar.isSuperGm() && destAvatar.hasIgnore(srcAvatar.getAvatarId())) {
+			res.setResult(ResponseResult.CHATRESULT_IGNORING);
+			cluster.send(res.serialize());
+			return;					
 		}
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		MSendInstantMessage msg = new MSendInstantMessage();
@@ -225,6 +240,24 @@ public class ChatApiServer {
 		    	continue;
 		    }
 			avatar.getPmList().put(mailId, pm);
+		}
+		if(!avatar.isInvisible()) {
+			for(ChatAvatar avatar2 : onlineAvatars.values()) {
+				if(avatar2.hasFriend(avatar.getAvatarId())) {
+					MFriendLogin msg = new MFriendLogin();
+					msg.setDestAvatarId(avatar2.getAvatarId());
+					msg.setFriendAvatar(avatar);
+					msg.setFriendAddress(avatar.getAddress());
+					avatar2.getFriend(avatar.getAvatarId()).setStatus((short) 1);
+					avatar2.getCluster().send(msg.serialize());
+				}
+			}
+		}
+		for(ChatFriend friend : avatar.getFriendsList()) {
+			if(onlineAvatars.containsKey(friend.getFullAddress()))
+				friend.setStatus((short) 1);
+			else
+				friend.setStatus((short) 0);
 		}
 	}
 
@@ -369,7 +402,17 @@ public class ChatApiServer {
 		for(PersistentMessage pm : avatar.getPmList().valueCollection()) {
 			persistPersistentMessage(pm, true);
 		}
-		
+		for(ChatAvatar avatar2 : onlineAvatars.values()) {
+			if(avatar2.hasFriend(avatar.getAvatarId())) {
+				MFriendLogout msg = new MFriendLogout();
+				msg.setDestAvatarId(avatar2.getAvatarId());
+				msg.setFriendAvatar(avatar);
+				msg.setFriendAddress(avatar.getAddress());
+				avatar2.getFriend(avatar.getAvatarId()).setStatus((short) 0);
+				avatar2.getCluster().send(msg.serialize());
+			}
+		}
+
 	}
  
 	private void persistPersistentMessage(PersistentMessage pm, boolean async) {
@@ -457,7 +500,6 @@ public class ChatApiServer {
 		mailDb.put(key, output.toBytes());
 	}
 
-
 	public void handleSendPersistentMessage(ChatApiClient cluster, RSendPersistentMessage req) {
 		ResSendPersistentMessage res = new ResSendPersistentMessage();
 		res.setTrack(req.getTrack());
@@ -481,6 +523,11 @@ public class ChatApiServer {
 				cluster.send(res.serialize());
 				return;					
 			}
+		}
+		if(!srcAvatar.isGm() && !srcAvatar.isSuperGm() && destAvatar.hasIgnore(srcAvatar.getAvatarId())) {
+			res.setResult(ResponseResult.CHATRESULT_IGNORING);
+			cluster.send(res.serialize());
+			return;					
 		}
 		PersistentMessage pm = new PersistentMessage();
 		pm.setAvatarId(destAvatar.getAvatarId());
@@ -515,6 +562,131 @@ public class ChatApiServer {
 				return cluster;
 		}
 		return null;
+	}
+
+	public void handleAddFriend(ChatApiClient cluster, RAddFriend req) {
+		ResAddFriend res = new ResAddFriend();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(avatar.hasFriend(req.getDestAddress(), req.getDestName())) {
+			res.setResult(ResponseResult.CHATRESULT_DUPLICATEFRIEND);
+			cluster.send(res.serialize());
+			return;
+		}
+		String fullAddress = req.getDestAddress().getString() + "+" + req.getDestName().getString();
+		System.out.println(fullAddress);
+		ChatAvatar destAvatar = onlineAvatars.get(fullAddress);
+		if(destAvatar == null) {
+			destAvatar = getAvatarFromDatabase(fullAddress);
+			if(destAvatar == null) {
+				res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+				cluster.send(res.serialize());
+				return;					
+			}
+		}
+		if(destAvatar == avatar) {
+			res.setResult(ResponseResult.CHATRESULT_INVALID_INPUT);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatFriend friend = new ChatFriend();
+		friend.setAvatarId(destAvatar.getAvatarId());
+		friend.setAddress(destAvatar.getAddress());
+		friend.setName(destAvatar.getName());
+		friend.setComment(req.getComment());
+		friend.setStatus((short) (destAvatar.isLoggedIn() ? 1 : 0));
+		avatar.addFriend(friend);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
+		if(friend.getStatus() != 0) {
+			MFriendLogin msg = new MFriendLogin();
+			msg.setDestAvatarId(avatar.getAvatarId());
+			msg.setFriendAvatar(destAvatar);
+			msg.setFriendAddress(destAvatar.getAddress());
+			cluster.send(msg.serialize());
+		}
+	}
+
+	public void handleRemoveFriend(ChatApiClient cluster, RRemoveFriend req) {
+		ResRemoveFriend res = new ResRemoveFriend();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!avatar.hasFriend(req.getDestAddress(), req.getDestName())) {
+			res.setResult(ResponseResult.CHATRESULT_FRIENDNOTFOUND);
+			cluster.send(res.serialize());
+			return;
+		}
+		avatar.removeFriend(req.getDestAddress(), req.getDestName());
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
+	}
+
+	public void handleAddIgnore(ChatApiClient cluster, RAddIgnore req) {
+		ResAddIgnore res = new ResAddIgnore();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(avatar.hasIgnore(req.getDestAddress(), req.getDestName())) {
+			res.setResult(ResponseResult.CHATRESULT_DUPLICATEIGNORE);
+			cluster.send(res.serialize());
+			return;
+		}
+		String fullAddress = req.getDestAddress().getString() + "+" + req.getDestName().getString();
+		System.out.println(fullAddress);
+		ChatAvatar destAvatar = onlineAvatars.get(fullAddress);
+		if(destAvatar == null) {
+			destAvatar = getAvatarFromDatabase(fullAddress);
+			if(destAvatar == null) {
+				res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+				cluster.send(res.serialize());
+				return;					
+			}
+		}
+		if(destAvatar == avatar) {
+			res.setResult(ResponseResult.CHATRESULT_INVALID_INPUT);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatIgnore ignore = new ChatIgnore();
+		ignore.setAvatarId(destAvatar.getAvatarId());
+		ignore.setAddress(destAvatar.getAddress());
+		ignore.setName(destAvatar.getName());
+		avatar.addIgnore(ignore);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
+	}
+
+	public void handleRemoveIgnore(ChatApiClient cluster, RRemoveIgnore req) {
+		ResRemoveIgnore res = new ResRemoveIgnore();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!avatar.hasIgnore(req.getDestAddress(), req.getDestName())) {
+			res.setResult(ResponseResult.CHATRESULT_IGNORENOTFOUND);
+			cluster.send(res.serialize());
+			return;
+		}
+		avatar.removeIgnore(req.getDestAddress(), req.getDestName());
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
 	}
 	
 }

@@ -3,6 +3,7 @@ package chat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import gnu.trove.list.array.TIntArrayList;
@@ -32,6 +33,8 @@ public class ChatAvatar {
 	private transient ChatApiClient cluster;
 	private TIntArrayList mailIds = new TIntArrayList();
 	private transient TIntObjectMap<PersistentMessage> pmList = new TIntObjectHashMap<>();
+	private List<ChatFriend> friendsList = new ArrayList<>();
+	private List<ChatIgnore> ignoreList = new ArrayList<>();
 	
 	public ChatUnicodeString getName() {
 		return name;
@@ -192,6 +195,88 @@ public class ChatAvatar {
 	public void removeMail(PersistentMessage pm) {
 		pmList.remove(pm.getMessageId());
 		mailIds.remove(pm.getMessageId());
+	}
+
+	public List<ChatFriend> getFriendsList() {
+		return friendsList;
+	}
+
+	public void setFriendsList(List<ChatFriend> friendsList) {
+		this.friendsList = friendsList;
+	}
+
+	public List<ChatIgnore> getIgnoreList() {
+		return ignoreList;
+	}
+
+	public void setIgnoreList(List<ChatIgnore> ignoreList) {
+		this.ignoreList = ignoreList;
+	}
+
+	public void addFriend(ChatFriend friend) {
+		friendsList.add(friend);
+	}
+	
+	public void addIgnore(ChatIgnore ignore) {
+		ignoreList.add(ignore);
+	}
+
+	public boolean hasFriend(ChatUnicodeString destAddress, ChatUnicodeString destName) {
+		for(ChatFriend friend : friendsList) {
+			if(friend.getAddress().equals(destAddress) && friend.getName().equals(destName))
+				return true;
+		}
+		return false;
+	}
+
+	public void removeFriend(ChatUnicodeString destAddress, ChatUnicodeString destName) {
+		Iterator<ChatFriend> it = friendsList.iterator();
+		while(it.hasNext()) {
+			ChatFriend friend = it.next();
+			if(friend.getAddress().equals(destAddress) && friend.getName().equals(destName))
+				it.remove();
+		}
+	}
+
+	public boolean hasFriend(int avatarId) {
+		for(ChatFriend friend : friendsList) {
+			if(friend.getAvatarId() == avatarId)
+				return true;
+		}
+		return false;
+	}
+
+	public ChatFriend getFriend(int avatarId) {
+		for(ChatFriend friend : friendsList) {
+			if(friend.getAvatarId() == avatarId)
+				return friend;
+		}
+		return null;
+	}
+
+	public boolean hasIgnore(ChatUnicodeString destAddress, ChatUnicodeString destName) {
+		for(ChatIgnore ignore : ignoreList) {
+			if(ignore.getAddress().equals(destAddress) && ignore.getName().equals(destName))
+				return true;
+		}
+		return false;
+	}
+	
+	public void removeIgnore(ChatUnicodeString destAddress, ChatUnicodeString destName) {
+		Iterator<ChatIgnore> it = ignoreList.iterator();
+		while(it.hasNext()) {
+			ChatIgnore ignore = it.next();
+			if(ignore.getAddress().equals(destAddress) && ignore.getName().equals(destName))
+				it.remove();
+		}
+	}
+
+	public boolean hasIgnore(int avatarId) {
+		for(ChatIgnore ignore : ignoreList) {
+			if(ignore.getAvatarId() == avatarId)
+				return true;
+		}
+		return false;
 	}
 	
 }

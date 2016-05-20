@@ -19,8 +19,18 @@ import java.nio.ByteOrder;
 
 
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+
+
+
+
+
+
+
+
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,23 +57,40 @@ import org.apache.logging.log4j.Logger;
 
 
 
+
+
+
+
+
+
+
+
+
 import chat.protocol.GenericRequest;
+import chat.protocol.request.RAddFriend;
+import chat.protocol.request.RAddIgnore;
 import chat.protocol.request.RDestroyAvatar;
+import chat.protocol.request.RFriendStatus;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RGetAvatar;
 import chat.protocol.request.RGetPersistentHeaders;
 import chat.protocol.request.RGetPersistentMessage;
+import chat.protocol.request.RIgnoreStatus;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RRegistrarGetChatServer;
+import chat.protocol.request.RRemoveFriend;
+import chat.protocol.request.RRemoveIgnore;
 import chat.protocol.request.RSendApiVersion;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
 import chat.protocol.request.RSetAvatarAttributes;
 import chat.protocol.request.RUpdatePersistentMessage;
 import chat.protocol.request.RUpdatePersistentMessages;
+import chat.protocol.response.ResFriendStatus;
 import chat.protocol.response.ResGetPersistentHeaders;
 import chat.protocol.response.ResGetPersistentMessage;
+import chat.protocol.response.ResIgnoreStatus;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResSetAvatarAttributes;
@@ -258,6 +285,60 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 			cluster.send(res.serialize());   		
     	});
+    	packetTypes.put(GenericRequest.REQUEST_FRIENDSTATUS, (cluster, packet) -> {
+    		RFriendStatus req = new RFriendStatus();
+    		req.deserialize(packet);
+    		ResFriendStatus res = new ResFriendStatus();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			res.setFriendsList(new ArrayList<>());
+    			cluster.send(res.serialize());
+    			return;
+    		}
+			res.setFriendsList(avatar.getFriendsList());
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());   		
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_IGNORESTATUS, (cluster, packet) -> {
+    		RIgnoreStatus req = new RIgnoreStatus();
+    		req.deserialize(packet);
+    		ResIgnoreStatus res = new ResIgnoreStatus();
+    		res.setTrack(req.getTrack());
+    		ChatAvatar avatar = server.getAvatarById(req.getSrcAvatarId());
+    		if(avatar == null) {
+    			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+    			res.setIgnoreList(new ArrayList<>());
+    			cluster.send(res.serialize());
+    			return;
+    		}
+			res.setIgnoreList(avatar.getIgnoreList());
+    		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+			cluster.send(res.serialize());   		
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_ADDFRIEND, (cluster, packet) -> {
+    		System.out.println("recv add friend req");
+    		RAddFriend req = new RAddFriend();
+    		req.deserialize(packet);
+    		server.handleAddFriend(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_REMOVEFRIEND, (cluster, packet) -> {
+    		RRemoveFriend req = new RRemoveFriend();
+    		req.deserialize(packet);
+    		server.handleRemoveFriend(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_ADDIGNORE, (cluster, packet) -> {
+    		RAddIgnore req = new RAddIgnore();
+    		req.deserialize(packet);
+    		server.handleAddIgnore(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_REMOVEIGNORE, (cluster, packet) -> {
+    		RRemoveIgnore req = new RRemoveIgnore();
+    		req.deserialize(packet);
+    		server.handleRemoveIgnore(cluster, req);
+    	});
+   	
 	}
 
 	@Override
