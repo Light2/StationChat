@@ -7,8 +7,8 @@ import chat.util.ChatUnicodeString;
 
 public class RGetRoomSummaries extends GenericRequest {
 	
-	private ChatUnicodeString startNodeAddress;
-	private ChatUnicodeString roomFilter;
+	private ChatUnicodeString startNodeAddress = new ChatUnicodeString();
+	private ChatUnicodeString roomFilter = new ChatUnicodeString();
 
 	@Override
 	public ByteBuffer serialize() {

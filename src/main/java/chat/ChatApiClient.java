@@ -40,5 +40,12 @@ public class ChatApiClient {
 	public void setAddress(ChatUnicodeString address) {
 		this.address = address;
 	}
+	
+	public int getNodeId() {
+		if(address != null)
+			return address.getString().hashCode();
+		else
+			return 0;
+	}
 
 }

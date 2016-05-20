@@ -1,5 +1,7 @@
 package chat;
 
+import gnu.trove.map.TIntIntMap;
+import gnu.trove.map.hash.TIntIntHashMap;
 import io.netty.channel.Channel;
 
 import java.io.ByteArrayInputStream;
@@ -84,6 +86,7 @@ public class ChatApiServer {
 	private final Map<String, ChatAvatar> onlineAvatars = new HashMap<>();
 	private ExecutorService persister;
 	private int highestAvatarId;
+	private TIntIntMap roomMessageIdMap = new TIntIntHashMap();
 	
 	public ChatApiServer() {
 		config = new Config("config.cfg");
@@ -259,6 +262,7 @@ public class ChatApiServer {
 			else
 				friend.setStatus((short) 0);
 		}
+		roomMessageIdMap.remove(avatar.getAvatarId());
 	}
 
 	public ChatAvatar getAvatarFromDatabase(String fullAddress) {
@@ -412,7 +416,7 @@ public class ChatApiServer {
 				avatar2.getCluster().send(msg.serialize());
 			}
 		}
-
+		roomMessageIdMap.remove(avatar.getAvatarId());
 	}
  
 	private void persistPersistentMessage(PersistentMessage pm, boolean async) {
@@ -687,6 +691,14 @@ public class ChatApiServer {
 		avatar.removeIgnore(req.getDestAddress(), req.getDestName());
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		cluster.send(res.serialize());
+	}
+
+	public TIntIntMap getRoomMessageIdMap() {
+		return roomMessageIdMap;
+	}
+
+	public void setRoomMessageIdMap(TIntIntMap roomMessageIdMap) {
+		this.roomMessageIdMap = roomMessageIdMap;
 	}
 	
 }
