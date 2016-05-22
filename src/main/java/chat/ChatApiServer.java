@@ -1,5 +1,6 @@
 package chat;
 
+import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.TIntIntMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import io.netty.channel.Channel;
@@ -18,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -37,27 +39,38 @@ import com.esotericsoftware.kryo.io.Output;
 import chat.protocol.message.MFriendLogin;
 import chat.protocol.message.MFriendLogout;
 import chat.protocol.message.MPersistentMessage;
+import chat.protocol.message.MRoomMessage;
 import chat.protocol.message.MSendInstantMessage;
 import chat.protocol.request.RAddFriend;
 import chat.protocol.request.RAddIgnore;
+import chat.protocol.request.RCreateRoom;
 import chat.protocol.request.RDestroyAvatar;
+import chat.protocol.request.REnterRoom;
 import chat.protocol.request.RGetAnyAvatar;
+import chat.protocol.request.RGetRoom;
+import chat.protocol.request.RGetRoomSummaries;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RRemoveFriend;
 import chat.protocol.request.RRemoveIgnore;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
+import chat.protocol.request.RSendRoomMessage;
 import chat.protocol.response.ResAddFriend;
 import chat.protocol.response.ResAddIgnore;
+import chat.protocol.response.ResCreateRoom;
 import chat.protocol.response.ResDestroyAvatar;
+import chat.protocol.response.ResEnterRoom;
 import chat.protocol.response.ResGetAnyAvatar;
+import chat.protocol.response.ResGetRoom;
+import chat.protocol.response.ResGetRoomSummaries;
 import chat.protocol.response.ResLoginAvatar;
 import chat.protocol.response.ResLogoutAvatar;
 import chat.protocol.response.ResRemoveFriend;
 import chat.protocol.response.ResRemoveIgnore;
 import chat.protocol.response.ResSendInstantMessage;
 import chat.protocol.response.ResSendPersistentMessage;
+import chat.protocol.response.ResSendRoomMessage;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
 import chat.util.Config;
@@ -87,6 +100,8 @@ public class ChatApiServer {
 	private ExecutorService persister;
 	private int highestAvatarId;
 	private TIntIntMap roomMessageIdMap = new TIntIntHashMap();
+	private Map<String, ChatRoom> roomMap = new HashMap<>();
+	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 	
 	public ChatApiServer() {
 		config = new Config("config.cfg");
@@ -263,6 +278,10 @@ public class ChatApiServer {
 				friend.setStatus((short) 0);
 		}
 		roomMessageIdMap.remove(avatar.getAvatarId());
+		if(avatar.getName().getString().equalsIgnoreCase("system")) {
+			createRootGameRoom(cluster, avatar);
+			createRootClusterRoom(cluster, avatar);
+		}
 	}
 
 	public ChatAvatar getAvatarFromDatabase(String fullAddress) {
@@ -511,7 +530,7 @@ public class ChatApiServer {
 		if(req.isAvatarPresence() != 0) {
 			srcAvatar = getAvatarById(req.getSrcAvatarId());
 		} else {
-			srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + req.getSrcName());
+			srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + req.getSrcName().getString());
 		}
 		if(srcAvatar == null) {
 			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
@@ -572,6 +591,7 @@ public class ChatApiServer {
 		ResAddFriend res = new ResAddFriend();
 		res.setTrack(req.getTrack());
 		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		System.out.println(req.getDestName().getString());
 		if(avatar == null) {
 			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
 			cluster.send(res.serialize());
@@ -583,7 +603,6 @@ public class ChatApiServer {
 			return;
 		}
 		String fullAddress = req.getDestAddress().getString() + "+" + req.getDestName().getString();
-		System.out.println(fullAddress);
 		ChatAvatar destAvatar = onlineAvatars.get(fullAddress);
 		if(destAvatar == null) {
 			destAvatar = getAvatarFromDatabase(fullAddress);
@@ -700,5 +719,257 @@ public class ChatApiServer {
 	public void setRoomMessageIdMap(TIntIntMap roomMessageIdMap) {
 		this.roomMessageIdMap = roomMessageIdMap;
 	}
+
+	public void handleGetRoomSummaries(ChatApiClient cluster, RGetRoomSummaries req) {
+		ResGetRoomSummaries res = new ResGetRoomSummaries();
+		res.setTrack(req.getTrack());
+		List<ChatRoom> rooms = new ArrayList<>();
+		for(ChatRoom room : roomMap.values()) {
+			//if(room.getRoomAddress().getString().startsWith(req.getStartNodeAddress().getString()) && room.getRoomAddress().getString().contains(req.getRoomFilter().getString()))
+			rooms.add(room);
+			//System.out.println(room.getFullAddress());
+		}
+		res.setRooms(rooms);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
+	}
+
+	public void handleCreateRoom(ChatApiClient cluster, RCreateRoom req) {
+		ResCreateRoom res = new ResCreateRoom();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(roomMap.get(req.getRoomAddress().getString() + "+" + req.getRoomName().getString()) != null) {
+			//System.out.println("room already exists");
+			res.setResult(ResponseResult.CHATRESULT_ROOM_ALREADYEXISTS);
+			cluster.send(res.serialize());
+			return;
+		}
+		
+		ChatRoom room = new ChatRoom();
+		room.setCreateTime((int) (System.currentTimeMillis() / 1000));
+		room.setRoomId(getNewRoomId());
+		room.setCreatorId(avatar.getAvatarId());
+		room.setCreatorAddress(avatar.getAddress());
+		room.setCreatorName(avatar.getName());
+		room.setRoomAddress(new ChatUnicodeString(req.getRoomAddress().getString() + "+" + req.getRoomName().getString()));
+		room.setRoomAttributes(req.getRoomAttributes());
+		room.setRoomName(req.getRoomName());
+		room.setRoomPassword(req.getRoomPassword());
+		room.setRoomTopic(req.getRoomTopic());
+		room.setNodeLevel(room.getRoomAddress().getString().split("\\+").length);
+		room.setMaxRoomSize(req.getMaxRoomSize());
+		room.addAvatar(avatar);
+		room.addAdmin(avatar);
+		/*System.out.println(req.getRoomAttributes());
+		System.out.println(req.getRoomAddress().getString());
+		System.out.println(req.getRoomName().getString());
+		System.out.println(req.getRoomTopic().getString());
+		System.out.println(req.getMaxRoomSize());*/
+		roomMap.put(room.getRoomAddress().getString(), room);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		res.setRoom(room);
+		List<ChatRoom> parentRooms = getParentRooms(room);
+		res.setExtraRooms(parentRooms);
+		cluster.send(res.serialize());
+	}
+
+	public void handleGetRoom(ChatApiClient cluster, RGetRoom req) {
+		ResGetRoom res = new ResGetRoom();
+		res.setTrack(req.getTrack());
+		ChatRoom room = roomMap.get(req.getRoomAddress().getString());
+		System.out.println("GetRoom for " + req.getRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setRoom(room);
+		List<ChatRoom> parentRooms = getParentRooms(room);
+		//List<ChatRoom> subRooms = getSubRooms(room);
+		res.setExtraRooms(parentRooms);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());
+	}
+
+	private List<ChatRoom> getParentRooms(ChatRoom room) {
+		List<ChatRoom> parentRooms = new ArrayList<>();
+		for(ChatRoom parent : roomMap.values()) {
+			if(room.getRoomAddress().getString().startsWith(parent.getRoomAddress().getString()))
+				parentRooms.add(parent);
+		}
+		return parentRooms;
+	}
 	
+	private List<ChatRoom> getSubRooms(ChatRoom room) {
+		List<ChatRoom> subRooms = new ArrayList<>();
+		for(ChatRoom sub : roomMap.values()) {
+			if(sub.getRoomAddress().getString().startsWith(room.getRoomAddress().getString()))
+				subRooms.add(sub);
+		}
+		return subRooms;
+	}
+
+	public void handleEnterRoom(ChatApiClient cluster, REnterRoom req) {
+		ResEnterRoom res = new ResEnterRoom() ;
+		res.setTrack(req.getTrack());
+		System.out.println(req.getRoomAddress().getString());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		System.out.println("entering room");
+
+		res.setRoomId(room.getRoomId());
+		room.addAvatar(avatar);
+		res.setGotRoom(true);
+		res.setRoom(room);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
+	}
+
+	public void handleLeaveRoom(ChatApiClient cluster, RGetRoomSummaries req) {
+		
+	}
+
+	public Map<String, ChatRoom> getRoomMap() {
+		return roomMap;
+	}
+
+	public void setRoomMap(Map<String, ChatRoom> roomMap) {
+		this.roomMap = roomMap;
+	}
+	
+	public ChatRoom getRoomById(int roomId) {
+		for(ChatRoom room : roomMap.values()) {
+			if(room.getRoomId() == roomId) {
+				return room;
+			}
+		}
+		return null;
+	}
+	
+	private int getNewRoomId() {
+		boolean found = false;
+		int roomId = 0;
+		while(!found) {
+			roomId = ThreadLocalRandom.current().nextInt();
+			if(roomId != 0 && getRoomById(roomId) == null)
+				found = true;
+		}
+		return roomId;
+	}
+	
+	private void persistChatRoom(ChatRoom room) {
+		Output output = new Output(new ByteArrayOutputStream());
+		kryos.get().writeClassAndObject(output, room);
+		byte[] value = output.toBytes();
+		byte[] key = room.getRoomAddress().getString().getBytes();
+		chatRoomDb.put(key, value);
+	}
+
+	public ScheduledExecutorService getScheduler() {
+		return scheduler;
+	}
+
+	public void setScheduler(ScheduledExecutorService scheduler) {
+		this.scheduler = scheduler;
+	}
+
+	public void handleSendRoomMessage(ChatApiClient cluster, RSendRoomMessage req) {
+		ResSendRoomMessage res = new ResSendRoomMessage() ;
+		res.setTrack(req.getTrack());
+		System.out.println(req.getRoomAddress().getString());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		System.out.println("sending room msg");
+		res.setDestRoomId(room.getRoomId());
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
+		MRoomMessage msg = new MRoomMessage();
+		TIntArrayList destAvatarIdList = new TIntArrayList();
+		room.getAvatarList().stream().map(ChatAvatar::getAvatarId).forEach(destAvatarIdList::add);
+		msg.setDestAvatarIdList(destAvatarIdList);
+		msg.setMessage(req.getMsg());
+		msg.setOob(req.getOob());
+		msg.setRoomId(room.getRoomId());
+		msg.setMessageId(getNewRoomMsgId(avatar));
+		msg.setAvatar(avatar);
+		cluster.send(msg.serialize());
+	}
+
+	private int getNewRoomMsgId(ChatAvatar avatar) {
+		boolean found = false;
+		int msgId = 0;
+		while(!found) {
+			msgId = ThreadLocalRandom.current().nextInt();
+			if(msgId != 0 && roomMessageIdMap.get(avatar.getAvatarId()) != msgId)
+				found = true;
+		}
+		roomMessageIdMap.put(avatar.getAvatarId(), msgId);
+		return msgId;
+	}
+	
+	private void createRootClusterRoom(ChatApiClient cluster, ChatAvatar systemAvatar) {
+		String clusterFullAddress = cluster.getAddress().getString();
+		String[] splitAddress = clusterFullAddress.split("\\+");
+		ChatRoom room = new ChatRoom();
+		room.setCreateTime((int) (System.currentTimeMillis() / 1000));
+		room.setRoomId(getNewRoomId());
+		room.setCreatorId(systemAvatar.getAvatarId());
+		room.setCreatorAddress(systemAvatar.getAddress());
+		room.setCreatorName(systemAvatar.getName());
+		room.setRoomAddress(new ChatUnicodeString(splitAddress[0] + "+" + splitAddress[1] + "+" + splitAddress[2]));
+		room.setRoomAttributes(0);
+		room.setRoomName(new ChatUnicodeString(splitAddress[2]));
+		room.setRoomPassword(new ChatUnicodeString());
+		room.setRoomTopic(new ChatUnicodeString());
+		room.setMaxRoomSize(0);
+		room.addAvatar(systemAvatar);
+		room.addAdmin(systemAvatar);
+		roomMap.put(room.getRoomAddress().getString(), room);
+	}
+	
+	private void createRootGameRoom(ChatApiClient cluster, ChatAvatar systemAvatar) {
+		String clusterFullAddress = cluster.getAddress().getString();
+		String[] splitAddress = clusterFullAddress.split("\\+");
+		ChatRoom room = new ChatRoom();
+		room.setCreateTime((int) (System.currentTimeMillis() / 1000));
+		room.setRoomId(getNewRoomId());
+		room.setCreatorId(systemAvatar.getAvatarId());
+		room.setCreatorAddress(systemAvatar.getAddress());
+		room.setCreatorName(systemAvatar.getName());
+		room.setRoomAddress(new ChatUnicodeString(splitAddress[0] + "+" + splitAddress[1]));
+		room.setRoomAttributes(0);
+		room.setRoomName(new ChatUnicodeString(splitAddress[1]));
+		room.setRoomPassword(new ChatUnicodeString());
+		room.setRoomTopic(new ChatUnicodeString());
+		room.setMaxRoomSize(0);
+		room.addAvatar(systemAvatar);
+		room.addAdmin(systemAvatar);
+		roomMap.put(room.getRoomAddress().getString(), room);
+	}
+
 }

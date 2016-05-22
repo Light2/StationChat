@@ -32,8 +32,19 @@ import java.util.List;
 
 
 
+
+
+
+import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+
+
+
+
+
 
 
 
@@ -69,12 +80,16 @@ import org.apache.logging.log4j.Logger;
 import chat.protocol.GenericRequest;
 import chat.protocol.request.RAddFriend;
 import chat.protocol.request.RAddIgnore;
+import chat.protocol.request.RCreateRoom;
 import chat.protocol.request.RDestroyAvatar;
+import chat.protocol.request.REnterRoom;
 import chat.protocol.request.RFriendStatus;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RGetAvatar;
 import chat.protocol.request.RGetPersistentHeaders;
 import chat.protocol.request.RGetPersistentMessage;
+import chat.protocol.request.RGetRoom;
+import chat.protocol.request.RGetRoomSummaries;
 import chat.protocol.request.RIgnoreStatus;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
@@ -84,6 +99,7 @@ import chat.protocol.request.RRemoveIgnore;
 import chat.protocol.request.RSendApiVersion;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
+import chat.protocol.request.RSendRoomMessage;
 import chat.protocol.request.RSetAvatarAttributes;
 import chat.protocol.request.RUpdatePersistentMessage;
 import chat.protocol.request.RUpdatePersistentMessages;
@@ -131,7 +147,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		res.setHostname(new ChatUnicodeString(hostname));
     		res.setPort((short) port);
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
-    		cluster.send(res.serialize());
+    		server.getScheduler().schedule(() -> cluster.send(res.serialize()), 15, TimeUnit.SECONDS); // fix bug where server wouldnt create system rooms
     		logger.info("Registrar recieved GetChatServer requested");
     	});
     	packetTypes.put(GenericRequest.REQUEST_SETAPIVERSION, (cluster, packet) -> {
@@ -338,7 +354,39 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		req.deserialize(packet);
     		server.handleRemoveIgnore(cluster, req);
     	});
-   	
+    	packetTypes.put(GenericRequest.REQUEST_GETROOMSUMMARIES, (cluster, packet) -> {
+    		RGetRoomSummaries req = new RGetRoomSummaries();
+    		req.deserialize(packet);
+    		server.handleGetRoomSummaries(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_CREATEROOM, (cluster, packet) -> {
+    		RCreateRoom req = new RCreateRoom();
+    		req.deserialize(packet);
+    		server.handleCreateRoom(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_GETROOM, (cluster, packet) -> {
+    		System.out.println("got get room req");
+    		RGetRoom req = new RGetRoom();
+    		req.deserialize(packet);
+    		server.handleGetRoom(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_ENTERROOM, (cluster, packet) -> {
+    	//	System.out.println("got enter room req");
+    		REnterRoom req = new REnterRoom();
+    		req.deserialize(packet);
+    		server.handleEnterRoom(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_LEAVEROOM, (cluster, packet) -> {
+    		RGetRoomSummaries req = new RGetRoomSummaries();
+    		req.deserialize(packet);
+    		server.handleLeaveRoom(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_SENDROOMMESSAGE, (cluster, packet) -> {
+        	System.out.println("got room msg");
+    		RSendRoomMessage req = new RSendRoomMessage();
+    		req.deserialize(packet);
+    		server.handleSendRoomMessage(cluster, req);
+    	});
 	}
 
 	@Override
@@ -352,7 +400,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     	unsafe.getBytes(0, packet);
     	//unsafe.readerIndex(idx);
     	packet.position(0);
-    	System.out.println(bytesToHex(packet.array()));
+    //	System.out.println(bytesToHex(packet.array()));
     	if(packet.capacity() < 10) {
     		logger.warn("Recieved packet of size < 6 bytes");
     		ctx.writeAndFlush(unsafe);

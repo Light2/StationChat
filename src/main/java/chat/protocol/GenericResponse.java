@@ -14,6 +14,7 @@ public abstract class GenericResponse extends GenericMessage {
 
 	public void setTrack(int track) {
 		this.track = track;
+		System.out.println("Track: " + track);
 	}
 
 	public long getTimeout() {

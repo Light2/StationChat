@@ -17,6 +17,7 @@ public class MRoomMessage extends GenericMessage {
 	private int roomId;
 	private TIntList destAvatarIdList = new TIntArrayList();
 	private int messageId;
+	private ChatAvatar avatar;
 	
 	public MRoomMessage() {
 		type = MESSAGE_ROOMMESSAGE;
@@ -24,10 +25,12 @@ public class MRoomMessage extends GenericMessage {
 
 	@Override
 	public ByteBuffer serialize() {
-		ByteBuffer buf = ByteBuffer.allocate(30 + message.getStringLength() * 2 + oob.getStringLength() * 2 + destAvatarIdList.size() * 4).order(ByteOrder.LITTLE_ENDIAN);
+		byte[] avatarBuf = avatar.serialize();
+		ByteBuffer buf = ByteBuffer.allocate(30 + avatarBuf.length + message.getStringLength() * 2 + oob.getStringLength() * 2 + destAvatarIdList.size() * 4).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(0);
 		buf.putShort(type);
 		buf.putInt(0);
+		buf.put(avatarBuf);
 		buf.putInt(roomId);
 		buf.putInt(destAvatarIdList.size());
 		for(int avatarId : destAvatarIdList.toArray()) {
@@ -84,6 +87,14 @@ public class MRoomMessage extends GenericMessage {
 
 	public void setMessageId(int messageId) {
 		this.messageId = messageId;
+	}
+
+	public ChatAvatar getAvatar() {
+		return avatar;
+	}
+
+	public void setAvatar(ChatAvatar avatar) {
+		this.avatar = avatar;
 	}
 
 }

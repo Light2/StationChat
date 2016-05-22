@@ -2,8 +2,12 @@ package chat;
 
 import io.netty.buffer.ByteBuf;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
@@ -23,21 +27,30 @@ public class ChatRoom {
 	private int creatorId;
 	private ChatUnicodeString roomName;
 	private ChatUnicodeString roomTopic;
-	private ChatUnicodeString roomPrefix;
+	private ChatUnicodeString roomPrefix = new ChatUnicodeString();
 	private ChatUnicodeString roomAddress;
 	private ChatUnicodeString roomPassword;
 	private int roomAttributes;
-	private int maxRoomSize;
+	private int maxRoomSize = Integer.MAX_VALUE;
 	private int roomId;
 	private int createTime;
 	private int nodeLevel;
-	private TIntList avatarList = new TIntArrayList();
+	/*private TIntList avatarList = new TIntArrayList();
 	private TIntList adminList = new TIntArrayList();
 	private TIntList moderatorList = new TIntArrayList();
 	private TIntList tmpModList = new TIntArrayList();
 	private TIntList banList = new TIntArrayList();
 	private TIntList inviteList = new TIntArrayList();
-	private TIntList voiceList = new TIntArrayList();
+	private TIntList voiceList = new TIntArrayList();*/
+	
+	private List<ChatAvatar> avatarList = new ArrayList<>();
+	private List<ChatAvatar> adminList = new ArrayList<>();
+	private List<ChatAvatar> moderatorList = new ArrayList<>();
+	private List<ChatAvatar> tmpModList = new ArrayList<>();
+	private List<ChatAvatar> banList = new ArrayList<>();
+	private List<ChatAvatar> inviteList = new ArrayList<>();
+	private List<ChatAvatar> voiceList = new ArrayList<>();
+
 	
 	public ChatUnicodeString getCreatorName() {
 		return creatorName;
@@ -143,59 +156,59 @@ public class ChatRoom {
 		this.nodeLevel = nodeLevel;
 	}
 
-	public TIntList getAvatarList() {
+	public List<ChatAvatar> getAvatarList() {
 		return avatarList;
 	}
 
-	public void setAvatarList(TIntList avatarList) {
+	public void setAvatarList(List<ChatAvatar> avatarList) {
 		this.avatarList = avatarList;
 	}
 
-	public TIntList getAdminList() {
+	public List<ChatAvatar> getAdminList() {
 		return adminList;
 	}
 
-	public void setAdminList(TIntList adminList) {
+	public void setAdminList(List<ChatAvatar> adminList) {
 		this.adminList = adminList;
 	}
 
-	public TIntList getModeratorList() {
+	public List<ChatAvatar> getModeratorList() {
 		return moderatorList;
 	}
 
-	public void setModeratorList(TIntList moderatorList) {
+	public void setModeratorList(List<ChatAvatar> moderatorList) {
 		this.moderatorList = moderatorList;
 	}
 
-	public TIntList getTmpModList() {
+	public List<ChatAvatar> getTmpModList() {
 		return tmpModList;
 	}
 
-	public void setTmpModList(TIntList tmpModList) {
+	public void setTmpModList(List<ChatAvatar> tmpModList) {
 		this.tmpModList = tmpModList;
 	}
 
-	public TIntList getBanList() {
+	public List<ChatAvatar> getBanList() {
 		return banList;
 	}
 
-	public void setBanList(TIntList banList) {
+	public void setBanList(List<ChatAvatar> banList) {
 		this.banList = banList;
 	}
 
-	public TIntList getInviteList() {
+	public List<ChatAvatar> getInviteList() {
 		return inviteList;
 	}
 
-	public void setInviteList(TIntList inviteList) {
+	public void setInviteList(List<ChatAvatar> inviteList) {
 		this.inviteList = inviteList;
 	}
 
-	public TIntList getVoiceList() {
+	public List<ChatAvatar> getVoiceList() {
 		return voiceList;
 	}
 
-	public void setVoiceList(TIntList voiceList) {
+	public void setVoiceList(List<ChatAvatar> voiceList) {
 		this.voiceList = voiceList;
 	}
 	
@@ -220,59 +233,77 @@ public class ChatRoom {
 	}
 	
 	public byte[] serialize() {
-		ByteBuf buf = GenericMessage.alloc.heapBuffer().order(ByteOrder.LITTLE_ENDIAN);
-		buf.writeBytes(creatorName.serialize());
-		buf.writeBytes(creatorAddress.serialize());
-		buf.writeInt(creatorId);
-		buf.writeBytes(roomName.serialize());
-		buf.writeBytes(roomTopic.serialize());
-		buf.writeBytes(roomPrefix.serialize());
-		buf.writeBytes(roomAddress.serialize());
-		buf.writeBytes(roomPassword.serialize());
-		buf.writeInt(roomAttributes);
-		buf.writeInt(maxRoomSize);
-		buf.writeInt(roomId);
-		buf.writeInt(createTime);
-		buf.writeInt(nodeLevel);
-		buf.writeInt(avatarList.size());
-		for(int avatarId : avatarList.toArray()) {
-			buf.writeInt(avatarId);
-		}
-		buf.writeInt(adminList.size());
-		for(int adminId : adminList.toArray()) {
-			buf.writeInt(adminId);
-		}
-		buf.writeInt(moderatorList.size());
-		for(int modId : moderatorList.toArray()) {
-			buf.writeInt(modId);
-		}
-		buf.writeInt(tmpModList.size());
-		for(int modId : tmpModList.toArray()) {
-			buf.writeInt(modId);
-		}
-		buf.writeInt(banList.size());
-		for(int bannedId : banList.toArray()) {
-			buf.writeInt(bannedId);
-		}
-		buf.writeInt(inviteList.size());
-		for(int inviteId : inviteList.toArray()) {
-			buf.writeInt(inviteId);
-		}
-		buf.writeInt(voiceList.size());
-		for(int voiceId : voiceList.toArray()) {
-			buf.writeInt(voiceId);
-		}
-		return buf.array();
+		//ByteArrayOutputStream buf = new ByteArrayOutputStream();
+		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
+		//try {
+			buf.writeBytes(creatorName.serialize());
+			buf.writeBytes(creatorAddress.serialize());
+			buf.writeInt(creatorId);
+			buf.writeBytes(roomName.serialize());
+			buf.writeBytes(roomTopic.serialize());
+			buf.writeBytes(roomPrefix.serialize());
+			buf.writeBytes(roomAddress.serialize());
+			buf.writeBytes(roomPassword.serialize());
+			buf.writeInt(roomAttributes);
+			buf.writeInt(maxRoomSize);
+			buf.writeInt(roomId);
+			buf.writeInt(createTime);
+			buf.writeInt(nodeLevel);
+			buf.writeInt(avatarList.size());
+			for(ChatAvatar avatar : avatarList) {
+				buf.writeBytes(avatar.serialize());
+			}
+			buf.writeInt(adminList.size());
+			for(ChatAvatar admin : adminList) {
+				buf.writeBytes(admin.serialize());
+			}
+			buf.writeInt(moderatorList.size());
+			for(ChatAvatar mod : moderatorList) {
+				buf.writeBytes(mod.serialize());
+			}
+			buf.writeInt(tmpModList.size());
+			for(ChatAvatar mod : tmpModList) {
+				buf.writeBytes(mod.serialize());
+			}
+			buf.writeInt(banList.size());
+			for(ChatAvatar banned : banList) {
+				buf.writeBytes(banned.serialize());
+			}
+			buf.writeInt(inviteList.size());
+			for(ChatAvatar invite : inviteList) {
+				buf.writeBytes(invite.serialize());
+			}
+			buf.writeInt(voiceList.size());
+			for(ChatAvatar voice : voiceList) {
+				buf.writeBytes(voice.serialize());
+			}
+		//} catch (IOException e) {
+		//	e.printStackTrace();
+		//}
+    	ByteBuffer packet = ByteBuffer.allocate(buf.writerIndex()).order(ByteOrder.LITTLE_ENDIAN);
+    	buf.getBytes(0, packet);
+		return packet.array();
 	}
 	
 	public byte[] serializeSummary() {
-		ByteBuf buf = GenericMessage.alloc.heapBuffer().order(ByteOrder.LITTLE_ENDIAN);
+		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
 		buf.writeBytes(roomAddress.serialize());
+		//buf.writeBytes(getFullAddress().getBytes());
 		buf.writeBytes(roomTopic.serialize());
 		buf.writeInt(roomAttributes);
 		buf.writeInt(avatarList.size());
 		buf.writeInt(maxRoomSize);
-		return buf.array();
+    	ByteBuffer packet = ByteBuffer.allocate(buf.writerIndex()).order(ByteOrder.LITTLE_ENDIAN);
+    	buf.getBytes(0, packet);
+		return packet.array();
 	}
 	
+	public void addAvatar(ChatAvatar avatar) {
+		avatarList.add(avatar);
+	}
+	
+	public void addAdmin(ChatAvatar avatar) {
+		adminList.add(avatar);
+	}
+		
 }

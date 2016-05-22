@@ -2,6 +2,7 @@ package chat.protocol.request;
 
 import java.nio.ByteBuffer;
 
+import chat.ChatApiTcpHandler;
 import chat.protocol.GenericRequest;
 import chat.util.ChatUnicodeString;
 
@@ -20,6 +21,7 @@ public class RGetRoom extends GenericRequest {
 		type = buf.getShort();
 		track = buf.getInt();
 		roomAddress.deserialize(buf);
+		System.out.println(ChatApiTcpHandler.bytesToHex(buf.array()));
 	}
 
 	public ChatUnicodeString getRoomAddress() {

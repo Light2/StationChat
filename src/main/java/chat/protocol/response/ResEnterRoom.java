@@ -13,7 +13,7 @@ public class ResEnterRoom extends GenericResponse {
 	private ChatRoom room;
 	private List<ChatRoom> extraRooms = new ArrayList<ChatRoom>();
 	private int roomId;
-	private boolean gotRoom;
+	private boolean gotRoom = false;
 	
 	public ResEnterRoom() {
 		type = RESPONSE_ENTERROOM;
@@ -34,7 +34,7 @@ public class ResEnterRoom extends GenericResponse {
 			roomBuf = room.serialize();
 			roomSize = roomBuf.length;
 		}
-		ByteBuffer buf = ByteBuffer.allocate(19 + roomBufsSize + roomSize).order(ByteOrder.LITTLE_ENDIAN);
+		ByteBuffer buf = ByteBuffer.allocate(23 + roomBufsSize + roomSize).order(ByteOrder.LITTLE_ENDIAN);
 		buf.putInt(0);
 		buf.putShort(type);
 		buf.putInt(track);
