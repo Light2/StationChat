@@ -213,23 +213,23 @@ public class ChatRoom {
 	}
 	
 	public boolean isPrivate() {
-		return (getRoomAttributes() & ROOMATTR_PRIVATE) == 1;
+		return (getRoomAttributes() & ROOMATTR_PRIVATE) == ROOMATTR_PRIVATE;
 	}
 	
 	public boolean isModerated() {
-		return (getRoomAttributes() & ROOMATTR_MODERATED) == 1;
+		return (getRoomAttributes() & ROOMATTR_MODERATED) == ROOMATTR_MODERATED;
 	}
 
 	public boolean isPersistent() {
-		return (getRoomAttributes() & ROOMATTR_PERSISTENT) == 1;
+		return (getRoomAttributes() & ROOMATTR_PERSISTENT) == ROOMATTR_PERSISTENT;
 	}
 
 	public boolean isLocalWorld() {
-		return (getRoomAttributes() & ROOMATTR_LOCAL_WORLD) == 1;
+		return (getRoomAttributes() & ROOMATTR_LOCAL_WORLD) == ROOMATTR_LOCAL_WORLD;
 	}
 
 	public boolean isLocalGame() {
-		return (getRoomAttributes() & ROOMATTR_LOCAL_GAME) == 1;
+		return (getRoomAttributes() & ROOMATTR_LOCAL_GAME) == ROOMATTR_LOCAL_GAME;
 	}
 	
 	public byte[] serialize() {
@@ -304,6 +304,54 @@ public class ChatRoom {
 	
 	public void addAdmin(ChatAvatar avatar) {
 		adminList.add(avatar);
+	}
+
+	public void removeAvatar(ChatAvatar avatar) {
+		avatarList.remove(avatar);
+	}
+
+	public boolean isOnBanList(ChatAvatar avatar) {
+		return banList.contains(avatar);
+	}
+
+	public boolean hasPassword() {
+		return !roomPassword.getString().equals("");
+	}
+
+	public boolean validatePassword(ChatUnicodeString roomPassword) {
+		return this.roomPassword.equals(roomPassword);
+	}
+
+	public boolean isInRoom(ChatAvatar avatar) {
+		return avatarList.contains(avatar);
+	}
+
+	public boolean isAdmin(ChatAvatar avatar) {
+		return adminList.contains(avatar);
+	}
+
+	public boolean isOwner(ChatAvatar avatar) {
+		return creatorId == avatar.getAvatarId();
+	}
+
+	public void addModerator(ChatAvatar destAvatar) {
+		moderatorList.add(destAvatar);
+	}
+
+	public boolean isModerator(ChatAvatar destAvatar) {
+		return moderatorList.contains(destAvatar);
+	}
+
+	public void removeModerator(ChatAvatar destAvatar) {
+		moderatorList.remove(destAvatar);
+	}
+
+	public boolean isBanned(ChatAvatar destAvatar) {
+		return banList.contains(destAvatar);
+	}
+
+	public void addBan(ChatAvatar destAvatar) {
+		banList.add(destAvatar);
 	}
 		
 }

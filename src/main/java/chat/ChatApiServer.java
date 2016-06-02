@@ -41,33 +41,43 @@ import chat.protocol.message.MFriendLogout;
 import chat.protocol.message.MPersistentMessage;
 import chat.protocol.message.MRoomMessage;
 import chat.protocol.message.MSendInstantMessage;
+import chat.protocol.request.RAddBan;
 import chat.protocol.request.RAddFriend;
 import chat.protocol.request.RAddIgnore;
+import chat.protocol.request.RAddModerator;
 import chat.protocol.request.RCreateRoom;
 import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.REnterRoom;
 import chat.protocol.request.RGetAnyAvatar;
 import chat.protocol.request.RGetRoom;
 import chat.protocol.request.RGetRoomSummaries;
+import chat.protocol.request.RLeaveRoom;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
+import chat.protocol.request.RRemoveBan;
 import chat.protocol.request.RRemoveFriend;
 import chat.protocol.request.RRemoveIgnore;
+import chat.protocol.request.RRemoveModerator;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
 import chat.protocol.request.RSendRoomMessage;
+import chat.protocol.response.ResAddBan;
 import chat.protocol.response.ResAddFriend;
 import chat.protocol.response.ResAddIgnore;
+import chat.protocol.response.ResAddModerator;
 import chat.protocol.response.ResCreateRoom;
 import chat.protocol.response.ResDestroyAvatar;
 import chat.protocol.response.ResEnterRoom;
 import chat.protocol.response.ResGetAnyAvatar;
 import chat.protocol.response.ResGetRoom;
 import chat.protocol.response.ResGetRoomSummaries;
+import chat.protocol.response.ResLeaveRoom;
 import chat.protocol.response.ResLoginAvatar;
 import chat.protocol.response.ResLogoutAvatar;
+import chat.protocol.response.ResRemoveBan;
 import chat.protocol.response.ResRemoveFriend;
 import chat.protocol.response.ResRemoveIgnore;
+import chat.protocol.response.ResRemoveModerator;
 import chat.protocol.response.ResSendInstantMessage;
 import chat.protocol.response.ResSendPersistentMessage;
 import chat.protocol.response.ResSendRoomMessage;
@@ -527,15 +537,26 @@ public class ChatApiServer {
 		ResSendPersistentMessage res = new ResSendPersistentMessage();
 		res.setTrack(req.getTrack());
 		ChatAvatar srcAvatar = null;
+		System.out.println(req.getDestAddress().getString());
+		System.out.println(req.getDestName().getString());
+		System.out.println(req.getSrcName().getString());
 		if(req.isAvatarPresence() != 0) {
 			srcAvatar = getAvatarById(req.getSrcAvatarId());
 		} else {
-			srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + req.getSrcName().getString());
+			String srcName = req.getSrcName().getString();
+			if(srcName.contains(" "))
+				srcName = srcName.split(" ")[0];
+			srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + srcName);
 		}
 		if(srcAvatar == null) {
-			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
-			cluster.send(res.serialize());
-			return;					
+			if(req.isAvatarPresence() == 0) {
+				// for auctioneer, planetary civil authority, and .stf sender names
+				srcAvatar = onlineAvatars.get(cluster.getAddress().getString() + "+" + "SYSTEM");				
+			} else {
+				res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+				cluster.send(res.serialize());
+				return;					
+			}
 		}
 		String destFullAdress = req.getDestAddress().getString() + "+" + req.getDestName().getString();
 		ChatAvatar destAvatar = onlineAvatars.get(destFullAdress);
@@ -559,7 +580,10 @@ public class ChatApiServer {
 		pm.setMessageId(getNewPmId());
 		pm.setCategory(req.getCategory());
 		pm.setSenderAddress(srcAvatar.getAddress());
-		pm.setSenderName(srcAvatar.getName());
+		if(req.isAvatarPresence() == 0)
+			pm.setSenderName(req.getSrcName());
+		else
+			pm.setSenderName(srcAvatar.getName());
 		pm.setStatus(PersistentMessageStatus.NEW);
 		pm.setSubject(req.getSubject());
 		pm.setTimestamp((int) (System.currentTimeMillis() / 1000));
@@ -727,7 +751,6 @@ public class ChatApiServer {
 		for(ChatRoom room : roomMap.values()) {
 			//if(room.getRoomAddress().getString().startsWith(req.getStartNodeAddress().getString()) && room.getRoomAddress().getString().contains(req.getRoomFilter().getString()))
 			rooms.add(room);
-			//System.out.println(room.getFullAddress());
 		}
 		res.setRooms(rooms);
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
@@ -765,11 +788,7 @@ public class ChatApiServer {
 		room.setMaxRoomSize(req.getMaxRoomSize());
 		room.addAvatar(avatar);
 		room.addAdmin(avatar);
-		/*System.out.println(req.getRoomAttributes());
-		System.out.println(req.getRoomAddress().getString());
-		System.out.println(req.getRoomName().getString());
-		System.out.println(req.getRoomTopic().getString());
-		System.out.println(req.getMaxRoomSize());*/
+		System.out.println("room attributes: " + room.getRoomAttributes());
 		roomMap.put(room.getRoomAddress().getString(), room);
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		res.setRoom(room);
@@ -830,9 +849,24 @@ public class ChatApiServer {
 			cluster.send(res.serialize());
 			return;
 		}
+		res.setRoomId(room.getRoomId());
+		if(room.isOnBanList(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_BANNEDAVATAR);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(room.hasPassword() && !room.validatePassword(req.getRoomPassword())) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(room.isBanned(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_BANNEDAVATAR);
+			cluster.send(res.serialize());
+			return;			
+		}
 		System.out.println("entering room");
 
-		res.setRoomId(room.getRoomId());
 		room.addAvatar(avatar);
 		res.setGotRoom(true);
 		res.setRoom(room);
@@ -840,8 +874,25 @@ public class ChatApiServer {
 		cluster.send(res.serialize());		
 	}
 
-	public void handleLeaveRoom(ChatApiClient cluster, RGetRoomSummaries req) {
-		
+	public void handleLeaveRoom(ChatApiClient cluster, RLeaveRoom req) {
+		ResLeaveRoom res = new ResLeaveRoom() ;
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setDestRoomId(room.getRoomId());
+		room.removeAvatar(avatar);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
 	}
 
 	public Map<String, ChatRoom> getRoomMap() {
@@ -970,6 +1021,211 @@ public class ChatApiServer {
 		room.addAvatar(systemAvatar);
 		room.addAdmin(systemAvatar);
 		roomMap.put(room.getRoomAddress().getString(), room);
+	}
+
+	public void handleAddModerator(ChatApiClient cluster, RAddModerator req) {
+		ResAddModerator res = new ResAddModerator();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatAvatar destAvatar = onlineAvatars.get(req.getDestAvatarAddress().getString() + "+" + req.getDestAvatarName().getString());
+		if(destAvatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getDestRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setDestRoomId(room.getRoomId());
+		if(!room.isModerated()) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_MODERATEDROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isInRoom(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isInRoom(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTNOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if((!room.isAdmin(avatar) || !room.isOwner(avatar)) && (!avatar.isGm() || !avatar.isSuperGm())) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(room.isModerator(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DUPLICATEMODERATOR);
+			cluster.send(res.serialize());
+			return;
+		}
+		System.out.println("adding moderator");
+		room.addModerator(destAvatar);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
+	}
+
+	public void handleRemoveModerator(ChatApiClient cluster, RRemoveModerator req) {
+		ResRemoveModerator res = new ResRemoveModerator();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatAvatar destAvatar = onlineAvatars.get(req.getDestAvatarAddress().getString() + "+" + req.getDestAvatarName().getString());
+		if(destAvatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getDestRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setDestRoomId(room.getRoomId());
+		if(!room.isModerated()) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_MODERATEDROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isInRoom(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isInRoom(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTNOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if((!room.isAdmin(avatar) || !room.isOwner(avatar) || !room.isModerator(avatar)) && (!avatar.isGm() || !avatar.isSuperGm())) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isModerator(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTAVATARNOTMODERATOR);
+			cluster.send(res.serialize());
+			return;
+		}
+		room.removeModerator(destAvatar);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
+	}
+
+	public void handleAddBan(ChatApiClient cluster, RAddBan req) {
+		ResAddBan res = new ResAddBan();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		String fullAddress = req.getDestAvatarAddress().getString() + "+" + req.getDestAvatarName().getString();
+		ChatAvatar destAvatar = onlineAvatars.get(fullAddress);
+		if(destAvatar == null) {
+			destAvatar = getAvatarFromDatabase(fullAddress);
+			if(destAvatar == null) {
+				res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+				cluster.send(res.serialize());
+				return;					
+			}
+		}
+		ChatRoom room = roomMap.get(req.getDestRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setDestRoomId(room.getRoomId());
+		if(!room.isInRoom(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}/*
+		if(!room.isInRoom(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTNOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}*/
+		if((!room.isAdmin(avatar) || !room.isOwner(avatar) || !room.isModerator(avatar)) && (!avatar.isGm() || !avatar.isSuperGm())) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(room.isBanned(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DUPLICATEBAN);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(destAvatar.isGm() || destAvatar.isSuperGm() || room.isOwner(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;			
+		}
+		room.addBan(destAvatar);
+		room.removeAvatar(destAvatar);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
+	}
+
+	public void handleRemoveBan(ChatApiClient cluster, RRemoveBan req) {
+		ResRemoveBan res = new ResRemoveBan();
+		res.setTrack(req.getTrack());
+		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
+		if(avatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatAvatar destAvatar = onlineAvatars.get(req.getDestAvatarAddress().getString() + "+" + req.getDestAvatarName().getString());
+		if(destAvatar == null) {
+			res.setResult(ResponseResult.CHATRESULT_DESTAVATARDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		ChatRoom room = roomMap.get(req.getDestRoomAddress().getString());
+		if(room == null) {
+			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
+			cluster.send(res.serialize());
+			return;
+		}
+		res.setDestRoomId(room.getRoomId());
+		if(!room.isInRoom(avatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOTINROOM);
+			cluster.send(res.serialize());
+			return;
+		}
+		if((!room.isAdmin(avatar) || !room.isOwner(avatar) || !room.isModerator(avatar)) && (!avatar.isGm() || !avatar.isSuperGm())) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
+			cluster.send(res.serialize());
+			return;
+		}
+		if(!room.isBanned(destAvatar)) {
+			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTAVATARNOTBANNED);
+			cluster.send(res.serialize());
+			return;
+		}
+		room.addBan(destAvatar);
+		room.removeAvatar(destAvatar);
+		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
+		cluster.send(res.serialize());		
 	}
 
 }

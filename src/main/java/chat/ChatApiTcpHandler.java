@@ -77,9 +77,17 @@ import org.apache.logging.log4j.Logger;
 
 
 
+
+
+
+
+
+
 import chat.protocol.GenericRequest;
+import chat.protocol.request.RAddBan;
 import chat.protocol.request.RAddFriend;
 import chat.protocol.request.RAddIgnore;
+import chat.protocol.request.RAddModerator;
 import chat.protocol.request.RCreateRoom;
 import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.REnterRoom;
@@ -91,11 +99,14 @@ import chat.protocol.request.RGetPersistentMessage;
 import chat.protocol.request.RGetRoom;
 import chat.protocol.request.RGetRoomSummaries;
 import chat.protocol.request.RIgnoreStatus;
+import chat.protocol.request.RLeaveRoom;
 import chat.protocol.request.RLoginAvatar;
 import chat.protocol.request.RLogoutAvatar;
 import chat.protocol.request.RRegistrarGetChatServer;
+import chat.protocol.request.RRemoveBan;
 import chat.protocol.request.RRemoveFriend;
 import chat.protocol.request.RRemoveIgnore;
+import chat.protocol.request.RRemoveModerator;
 import chat.protocol.request.RSendApiVersion;
 import chat.protocol.request.RSendInstantMessage;
 import chat.protocol.request.RSendPersistentMessage;
@@ -107,6 +118,7 @@ import chat.protocol.response.ResFriendStatus;
 import chat.protocol.response.ResGetPersistentHeaders;
 import chat.protocol.response.ResGetPersistentMessage;
 import chat.protocol.response.ResIgnoreStatus;
+import chat.protocol.response.ResLeaveRoom;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResSetAvatarAttributes;
@@ -212,6 +224,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		server.handleGetAnyAvatar(cluster, req);
     	});
     	packetTypes.put(GenericRequest.REQUEST_SENDPERSISTENTMESSAGE, (cluster, packet) -> {
+    		System.out.println("recv mail");
     		RSendPersistentMessage req = new RSendPersistentMessage();
     		req.deserialize(packet);
     		server.handleSendPersistentMessage(cluster, req);
@@ -377,7 +390,7 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		server.handleEnterRoom(cluster, req);
     	});
     	packetTypes.put(GenericRequest.REQUEST_LEAVEROOM, (cluster, packet) -> {
-    		RGetRoomSummaries req = new RGetRoomSummaries();
+    		RLeaveRoom req = new RLeaveRoom();
     		req.deserialize(packet);
     		server.handleLeaveRoom(cluster, req);
     	});
@@ -387,6 +400,27 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		req.deserialize(packet);
     		server.handleSendRoomMessage(cluster, req);
     	});
+    	packetTypes.put(GenericRequest.REQUEST_ADDMODERATOR, (cluster, packet) -> {
+    		RAddModerator req = new RAddModerator();
+    		req.deserialize(packet);
+    		server.handleAddModerator(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_REMOVEMODERATOR, (cluster, packet) -> {
+    		RRemoveModerator req = new RRemoveModerator();
+    		req.deserialize(packet);
+    		server.handleRemoveModerator(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_ADDBAN, (cluster, packet) -> {
+    		RAddBan req = new RAddBan();
+    		req.deserialize(packet);
+    		server.handleAddBan(cluster, req);
+    	});
+    	packetTypes.put(GenericRequest.REQUEST_REMOVEBAN, (cluster, packet) -> {
+    		RRemoveBan req = new RRemoveBan();
+    		req.deserialize(packet);
+    		server.handleRemoveBan(cluster, req);
+    	});
+    	
 	}
 
 	@Override
