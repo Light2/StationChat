@@ -7,7 +7,6 @@ import chat.protocol.GenericMessage;
 import chat.util.ChatUnicodeString;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 
 public class ChatApiClient {
 	

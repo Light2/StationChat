@@ -2,8 +2,6 @@ package chat.protocol.response;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-
-import chat.ChatApiTcpHandler;
 import chat.protocol.GenericResponse;
 import chat.util.ChatUnicodeString;
 

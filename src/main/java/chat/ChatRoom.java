@@ -1,16 +1,10 @@
 package chat;
 
 import io.netty.buffer.ByteBuf;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
-
-import gnu.trove.list.TIntList;
-import gnu.trove.list.array.TIntArrayList;
 import chat.protocol.GenericMessage;
 import chat.util.ChatUnicodeString;
 
@@ -233,53 +227,48 @@ public class ChatRoom {
 	}
 	
 	public byte[] serialize() {
-		//ByteArrayOutputStream buf = new ByteArrayOutputStream();
 		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
-		//try {
-			buf.writeBytes(creatorName.serialize());
-			buf.writeBytes(creatorAddress.serialize());
-			buf.writeInt(creatorId);
-			buf.writeBytes(roomName.serialize());
-			buf.writeBytes(roomTopic.serialize());
-			buf.writeBytes(roomPrefix.serialize());
-			buf.writeBytes(roomAddress.serialize());
-			buf.writeBytes(roomPassword.serialize());
-			buf.writeInt(roomAttributes);
-			buf.writeInt(maxRoomSize);
-			buf.writeInt(roomId);
-			buf.writeInt(createTime);
-			buf.writeInt(nodeLevel);
-			buf.writeInt(avatarList.size());
-			for(ChatAvatar avatar : avatarList) {
-				buf.writeBytes(avatar.serialize());
-			}
-			buf.writeInt(adminList.size());
-			for(ChatAvatar admin : adminList) {
-				buf.writeBytes(admin.serialize());
-			}
-			buf.writeInt(moderatorList.size());
-			for(ChatAvatar mod : moderatorList) {
-				buf.writeBytes(mod.serialize());
-			}
-			buf.writeInt(tmpModList.size());
-			for(ChatAvatar mod : tmpModList) {
-				buf.writeBytes(mod.serialize());
-			}
-			buf.writeInt(banList.size());
-			for(ChatAvatar banned : banList) {
-				buf.writeBytes(banned.serialize());
-			}
-			buf.writeInt(inviteList.size());
-			for(ChatAvatar invite : inviteList) {
-				buf.writeBytes(invite.serialize());
-			}
-			buf.writeInt(voiceList.size());
-			for(ChatAvatar voice : voiceList) {
-				buf.writeBytes(voice.serialize());
-			}
-		//} catch (IOException e) {
-		//	e.printStackTrace();
-		//}
+		buf.writeBytes(creatorName.serialize());
+		buf.writeBytes(creatorAddress.serialize());
+		buf.writeInt(creatorId);
+		buf.writeBytes(roomName.serialize());
+		buf.writeBytes(roomTopic.serialize());
+		buf.writeBytes(roomPrefix.serialize());
+		buf.writeBytes(roomAddress.serialize());
+		buf.writeBytes(roomPassword.serialize());
+		buf.writeInt(roomAttributes);
+		buf.writeInt(maxRoomSize);
+		buf.writeInt(roomId);
+		buf.writeInt(createTime);
+		buf.writeInt(nodeLevel);
+		buf.writeInt(avatarList.size());
+		for(ChatAvatar avatar : avatarList) {
+			buf.writeBytes(avatar.serialize());
+		}
+		buf.writeInt(adminList.size());
+		for(ChatAvatar admin : adminList) {
+			buf.writeBytes(admin.serialize());
+		}
+		buf.writeInt(moderatorList.size());
+		for(ChatAvatar mod : moderatorList) {
+			buf.writeBytes(mod.serialize());
+		}
+		buf.writeInt(tmpModList.size());
+		for(ChatAvatar mod : tmpModList) {
+			buf.writeBytes(mod.serialize());
+		}
+		buf.writeInt(banList.size());
+		for(ChatAvatar banned : banList) {
+			buf.writeBytes(banned.serialize());
+		}
+		buf.writeInt(inviteList.size());
+		for(ChatAvatar invite : inviteList) {
+			buf.writeBytes(invite.serialize());
+		}
+		buf.writeInt(voiceList.size());
+		for(ChatAvatar voice : voiceList) {
+			buf.writeBytes(voice.serialize());
+		}
     	ByteBuffer packet = ByteBuffer.allocate(buf.writerIndex()).order(ByteOrder.LITTLE_ENDIAN);
     	buf.getBytes(0, packet);
 		return packet.array();
@@ -288,7 +277,6 @@ public class ChatRoom {
 	public byte[] serializeSummary() {
 		ByteBuf buf = GenericMessage.alloc.buffer().order(ByteOrder.LITTLE_ENDIAN);
 		buf.writeBytes(roomAddress.serialize());
-		//buf.writeBytes(getFullAddress().getBytes());
 		buf.writeBytes(roomTopic.serialize());
 		buf.writeInt(roomAttributes);
 		buf.writeInt(avatarList.size());

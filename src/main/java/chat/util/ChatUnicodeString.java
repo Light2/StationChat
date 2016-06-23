@@ -4,9 +4,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
-import chat.ChatApiTcpHandler;
-import chat.protocol.GenericMessage;
-
 public class ChatUnicodeString {
 	
 	private String string;

@@ -21,7 +21,15 @@ public class RRegistrarGetChatServer extends GenericRequest	{
 		type = buf.getShort();
 		track = buf.getInt();
 		hostname.deserialize(buf);
-		port = buf.getShort();
+		setPort(buf.getShort());
+	}
+
+	public short getPort() {
+		return port;
+	}
+
+	public void setPort(short port) {
+		this.port = port;
 	}
 	
 	

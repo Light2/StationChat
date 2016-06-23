@@ -14,9 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,8 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.Options;
-import org.iq80.leveldb.ReadOptions;
-
 import static org.fusesource.leveldbjni.JniDBFactory.*;
 
 import com.esotericsoftware.kryo.Kryo;
@@ -767,7 +763,6 @@ public class ChatApiServer {
 			return;
 		}
 		if(roomMap.get(req.getRoomAddress().getString() + "+" + req.getRoomName().getString()) != null) {
-			//System.out.println("room already exists");
 			res.setResult(ResponseResult.CHATRESULT_ROOM_ALREADYEXISTS);
 			cluster.send(res.serialize());
 			return;
@@ -788,7 +783,6 @@ public class ChatApiServer {
 		room.setMaxRoomSize(req.getMaxRoomSize());
 		room.addAvatar(avatar);
 		room.addAdmin(avatar);
-		System.out.println("room attributes: " + room.getRoomAttributes());
 		roomMap.put(room.getRoomAddress().getString(), room);
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		res.setRoom(room);
@@ -836,7 +830,6 @@ public class ChatApiServer {
 	public void handleEnterRoom(ChatApiClient cluster, REnterRoom req) {
 		ResEnterRoom res = new ResEnterRoom() ;
 		res.setTrack(req.getTrack());
-		System.out.println(req.getRoomAddress().getString());
 		ChatAvatar avatar = getAvatarById(req.getSrcAvatarId());
 		if(avatar == null) {
 			res.setResult(ResponseResult.CHATRESULT_SRCAVATARDOESNTEXIST);
@@ -865,8 +858,6 @@ public class ChatApiServer {
 			cluster.send(res.serialize());
 			return;			
 		}
-		System.out.println("entering room");
-
 		room.addAvatar(avatar);
 		res.setGotRoom(true);
 		res.setRoom(room);
@@ -1158,12 +1149,7 @@ public class ChatApiServer {
 			res.setResult(ResponseResult.CHATRESULT_ROOM_NOTINROOM);
 			cluster.send(res.serialize());
 			return;
-		}/*
-		if(!room.isInRoom(destAvatar)) {
-			res.setResult(ResponseResult.CHATRESULT_ROOM_DESTNOTINROOM);
-			cluster.send(res.serialize());
-			return;
-		}*/
+		}
 		if((!room.isAdmin(avatar) || !room.isOwner(avatar) || !room.isModerator(avatar)) && (!avatar.isGm() || !avatar.isSuperGm())) {
 			res.setResult(ResponseResult.CHATRESULT_ROOM_NOPRIVILEGES);
 			cluster.send(res.serialize());

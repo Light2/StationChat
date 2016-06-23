@@ -2,87 +2,12 @@ package chat;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-
-
-
-
-
-
-
-
-
-
-
-
 import java.util.concurrent.TimeUnit;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import chat.protocol.GenericRequest;
 import chat.protocol.request.RAddBan;
 import chat.protocol.request.RAddFriend;
@@ -93,7 +18,6 @@ import chat.protocol.request.RDestroyAvatar;
 import chat.protocol.request.REnterRoom;
 import chat.protocol.request.RFriendStatus;
 import chat.protocol.request.RGetAnyAvatar;
-import chat.protocol.request.RGetAvatar;
 import chat.protocol.request.RGetPersistentHeaders;
 import chat.protocol.request.RGetPersistentMessage;
 import chat.protocol.request.RGetRoom;
@@ -118,7 +42,6 @@ import chat.protocol.response.ResFriendStatus;
 import chat.protocol.response.ResGetPersistentHeaders;
 import chat.protocol.response.ResGetPersistentMessage;
 import chat.protocol.response.ResIgnoreStatus;
-import chat.protocol.response.ResLeaveRoom;
 import chat.protocol.response.ResRegistrarGetChatServer;
 import chat.protocol.response.ResSendApiVersion;
 import chat.protocol.response.ResSetAvatarAttributes;
@@ -130,7 +53,6 @@ import chat.util.PersistentMessageStatus;
 import gnu.trove.map.TShortObjectMap;
 import gnu.trove.map.hash.TShortObjectHashMap;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelHandler;
@@ -429,12 +351,8 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
 		// msg comes in as an unpooled unsafe buffer in native memory
 		ByteBuf unsafe = (ByteBuf) msg;
     	ByteBuffer packet = ByteBuffer.allocate(((ByteBuf) msg).readableBytes()).order(ByteOrder.LITTLE_ENDIAN);
-		//System.out.println(((ByteBuf) msg).readableBytes());
-    //	int idx = unsafe.readerIndex();
     	unsafe.getBytes(0, packet);
-    	//unsafe.readerIndex(idx);
     	packet.position(0);
-    //	System.out.println(bytesToHex(packet.array()));
     	if(packet.capacity() < 10) {
     		logger.warn("Recieved packet of size < 6 bytes");
     		ctx.writeAndFlush(unsafe);
@@ -474,14 +392,10 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     }
     
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-		System.out.println("test5");
-
 		server.removeCluster(ctx.channel());
     }
     
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-		System.out.println("test");
-
 		server.addCluster(ctx.channel());
     }
 

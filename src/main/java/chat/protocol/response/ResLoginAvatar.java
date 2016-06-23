@@ -2,8 +2,6 @@ package chat.protocol.response;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-
-import io.netty.buffer.ByteBuf;
 import chat.ChatAvatar;
 import chat.protocol.GenericResponse;
 

@@ -1,8 +1,6 @@
 package chat.protocol.request;
 
 import java.nio.ByteBuffer;
-
-import chat.ChatApiTcpHandler;
 import chat.protocol.GenericRequest;
 import chat.util.ChatUnicodeString;
 

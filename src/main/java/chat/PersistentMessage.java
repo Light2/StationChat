@@ -2,9 +2,6 @@ package chat;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-
-import io.netty.buffer.ByteBuf;
-import chat.protocol.GenericMessage;
 import chat.util.ChatUnicodeString;
 
 public class PersistentMessage {
