@@ -519,6 +519,7 @@ public class ChatApiServer {
 			return null;
 		Input input = new Input(new ByteArrayInputStream(value));
 		PersistentMessage pm = (PersistentMessage) kryos.get().readClassAndObject(input);
+		input.close();
 		return pm;
 	}
 	
@@ -527,6 +528,7 @@ public class ChatApiServer {
 		Output output = new Output(new ByteArrayOutputStream());
 		kryos.get().writeClassAndObject(output, pm);
 		mailDb.put(key, output.toBytes());
+		output.close();
 	}
 
 	public void handleSendPersistentMessage(ChatApiClient cluster, RSendPersistentMessage req) {
