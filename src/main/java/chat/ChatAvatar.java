@@ -32,7 +32,6 @@ public class ChatAvatar {
 	private transient boolean isLoggedIn = false;
 	private transient ChatApiClient cluster;
 	private TIntArrayList mailIds = new TIntArrayList();
-	private transient TIntObjectMap<PersistentMessage> pmList = new TIntObjectHashMap<>();
 	private List<ChatFriend> friendsList = new ArrayList<>();
 	private List<ChatIgnore> ignoreList = new ArrayList<>();
 	
@@ -175,26 +174,12 @@ public class ChatAvatar {
 		return (getAttributes() & AVATARATTR_SUPERSNOOP) == 1;
 	}
 
-	public void addMail(PersistentMessage pm) {
-		mailIds.add(pm.getMessageId());
-		pmList.put(pm.getMessageId(), pm);
-	}
-
-	public TIntObjectMap<PersistentMessage> getPmList() {
-		return pmList;
-	}
-
-	public void setPmList(TIntObjectMap<PersistentMessage> pmList) {
-		this.pmList = pmList;
+	public void addMail(int messageId) {
+		mailIds.add(messageId);
 	}
 	
-	public PersistentMessage getPm(int messageId) {
-		return pmList.get(messageId);
-	}
-
-	public void removeMail(PersistentMessage pm) {
-		pmList.remove(pm.getMessageId());
-		mailIds.remove(pm.getMessageId());
+	public void removeMail(int messageId) {
+		mailIds.remove(messageId);
 	}
 
 	public List<ChatFriend> getFriendsList() {
@@ -277,6 +262,10 @@ public class ChatAvatar {
 				return true;
 		}
 		return false;
+	}
+
+	public boolean hasPm(int messageId) {
+		return mailIds.contains(messageId);
 	}
 	
 }

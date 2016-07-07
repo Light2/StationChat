@@ -261,7 +261,6 @@ public class ChatApiServer {
 		    	destroyPersistentMessage(avatar, pm);
 		    	continue;
 		    }
-			avatar.getPmList().put(mailId, pm);
 		}
 		if(!avatar.isInvisible()) {
 			for(ChatAvatar avatar2 : onlineAvatars.values()) {
@@ -424,9 +423,9 @@ public class ChatApiServer {
 		if(persist)
 			persistAvatar(avatar, true);
 		//TODO: remove chat room + friends status updates etc.
-		for(PersistentMessage pm : avatar.getPmList().valueCollection()) {
-			persistPersistentMessage(pm, true);
-		}
+		//for(PersistentMessage pm : avatar.getPmList().valueCollection()) {
+		//	persistPersistentMessage(pm, true);
+		//}
 		for(ChatAvatar avatar2 : onlineAvatars.values()) {
 			if(avatar2.hasFriend(avatar.getAvatarId())) {
 				MFriendLogout msg = new MFriendLogout();
@@ -440,7 +439,7 @@ public class ChatApiServer {
 		roomMessageIdMap.remove(avatar.getAvatarId());
 	}
  
-	private void persistPersistentMessage(PersistentMessage pm, boolean async) {
+	protected void persistPersistentMessage(PersistentMessage pm, boolean async) {
 		if(async)
 			persister.execute(() -> persistPersistentMessage(pm));
 		else
@@ -462,7 +461,7 @@ public class ChatApiServer {
 	}
 	
 	public void destroyPersistentMessage(ChatAvatar avatar, PersistentMessage pm) {
-		avatar.removeMail(pm);
+		avatar.removeMail(pm.getMessageId());
 		mailDb.delete(ByteBuffer.allocate(4).putInt(pm.getMessageId()).array());
 	}
 
@@ -508,7 +507,7 @@ public class ChatApiServer {
 		return mailId;
 	}
 	
-	private PersistentMessage getPersistentMessageFromDb(int messageId) {
+	protected PersistentMessage getPersistentMessageFromDb(int messageId) {
 		byte[] key = ByteBuffer.allocate(4).putInt(messageId).array();
 		byte[] value = mailDb.get(key);
 		if(value == null)
@@ -582,7 +581,7 @@ public class ChatApiServer {
 		pm.setSubject(req.getSubject());
 		pm.setTimestamp((int) (System.currentTimeMillis() / 1000));
 		persistPersistentMessage(pm);
-		destAvatar.addMail(pm);
+		destAvatar.addMail(pm.getMessageId());
 		
 		if(destAvatar.getCluster() != null && destAvatar.isLoggedIn()) {
 			MPersistentMessage msg = new MPersistentMessage();

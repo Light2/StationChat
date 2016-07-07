@@ -7,7 +7,6 @@ import chat.protocol.GenericRequest;
 public class RUpdatePersistentMessages extends GenericRequest {
 
 	private int srcAvatarId;
-	private int messageId;
 	private int currentStatus;
 	private int newStatus; 
 	private int category;
@@ -23,7 +22,6 @@ public class RUpdatePersistentMessages extends GenericRequest {
 		type = buf.getShort();
 		track = buf.getInt();
 		srcAvatarId = buf.getInt();
-		messageId = buf.getInt();
 		currentStatus = buf.getInt();
 		newStatus = buf.getInt();
 		category = buf.getInt();
@@ -35,14 +33,6 @@ public class RUpdatePersistentMessages extends GenericRequest {
 
 	public void setSrcAvatarId(int srcAvatarId) {
 		this.srcAvatarId = srcAvatarId;
-	}
-
-	public int getMessageId() {
-		return messageId;
-	}
-
-	public void setMessageId(int messageId) {
-		this.messageId = messageId;
 	}
 
 	public int getCurrentStatus() {

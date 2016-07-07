@@ -6,8 +6,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import chat.protocol.GenericRequest;
 import chat.protocol.request.RAddBan;
 import chat.protocol.request.RAddFriend;
@@ -50,6 +52,7 @@ import chat.protocol.response.ResUpdatePersistentMessages;
 import chat.protocol.response.ResponseResult;
 import chat.util.ChatUnicodeString;
 import chat.util.PersistentMessageStatus;
+import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.TShortObjectMap;
 import gnu.trove.map.hash.TShortObjectHashMap;
 import io.netty.buffer.ByteBuf;
@@ -159,7 +162,12 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     			cluster.send(res.serialize());
     			return;
     		}
-    		PersistentMessage pm = avatar.getPm(req.getMessageId());
+    		if(!avatar.hasPm(req.getMessageId())) {
+    			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		PersistentMessage pm = server.getPersistentMessageFromDb(req.getMessageId());
     		if(pm == null) {
     			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
     			cluster.send(res.serialize());
@@ -182,7 +190,12 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     			cluster.send(res.serialize());
     			return;
     		}
-    		PersistentMessage pm = avatar.getPm(req.getMessageId());
+    		if(!avatar.hasPm(req.getMessageId())) {
+    			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
+    			cluster.send(res.serialize());
+    			return;
+    		}
+    		PersistentMessage pm = server.getPersistentMessageFromDb(req.getMessageId());
     		if(pm == null) {
     			res.setResult(ResponseResult.CHATRESULT_PMSGNOTFOUND);
     			cluster.send(res.serialize());
@@ -191,6 +204,8 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		pm.setStatus(req.getStatus());
     		if(pm.getStatus() == PersistentMessageStatus.DELETED)
     			server.destroyPersistentMessage(avatar, pm);
+    		else 
+    			server.persistPersistentMessage(pm, true);
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 			cluster.send(res.serialize());
     	});
@@ -205,12 +220,20 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     			cluster.send(res.serialize());
     			return;
     		}
-    		Collection<PersistentMessage> pmList = avatar.getPmList().valueCollection();
-    		for(PersistentMessage pm : pmList) {
+    		TIntArrayList pmList = avatar.getMailIds();
+    	
+    		for(int pmId : pmList.toArray().clone()) {
+        		PersistentMessage pm = server.getPersistentMessageFromDb(pmId);
+        		if(pm == null) {
+        			avatar.removeMail(pmId);
+        			continue;
+        		}
     			if(pm.getStatus() == req.getCurrentStatus()) {
     				pm.setStatus(req.getNewStatus());
     	    		if(pm.getStatus() == PersistentMessageStatus.DELETED)
     	    			server.destroyPersistentMessage(avatar, pm);
+    	    		else
+    	    			server.persistPersistentMessage(pm, true);
     			}
     		}
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
@@ -229,7 +252,14 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     			return;
     		}
     		List<PersistentMessage> pmList = res.getPmList();
-    		pmList.addAll(avatar.getPmList().valueCollection());
+    		for(int pmId : avatar.getMailIds().toArray().clone()) {
+        		PersistentMessage pm = server.getPersistentMessageFromDb(pmId);
+        		if(pm == null) {
+        			avatar.removeMail(pmId);
+        			continue;
+        		}
+        		pmList.add(pm);
+    		}
     		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 			cluster.send(res.serialize());   		
     	});
