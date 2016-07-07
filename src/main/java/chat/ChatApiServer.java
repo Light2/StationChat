@@ -178,10 +178,8 @@ public class ChatApiServer {
 		}
 		ChatAvatar avatar = getAvatarFromDatabase(fullAddress);
 		if(avatar != null) {
-			System.out.println("Got avatar from DB");
 			loginAvatar(cluster, avatar);
 		} else {
-			System.out.println("Creating new avatar");
 			avatar = createAvatar(cluster, request, fullAddress);
 		}
 		response.setAvatar(avatar);
@@ -297,8 +295,6 @@ public class ChatApiServer {
 		Input input = new Input(new ByteArrayInputStream(buf));
 		ChatAvatar avatar = (ChatAvatar) kryos.get().readClassAndObject(input);
 		input.close();
-		if(avatar == null)
-			return null;
 		return avatar;
 	}
 	
@@ -587,9 +583,6 @@ public class ChatApiServer {
 		pm.setTimestamp((int) (System.currentTimeMillis() / 1000));
 		persistPersistentMessage(pm);
 		destAvatar.addMail(pm);
-		System.out.println(req.getSubject().getString());
-		System.out.println(req.getMessage().getString());
-		System.out.println(req.getOob().getString());
 		
 		if(destAvatar.getCluster() != null && destAvatar.isLoggedIn()) {
 			MPersistentMessage msg = new MPersistentMessage();
@@ -797,7 +790,6 @@ public class ChatApiServer {
 		ResGetRoom res = new ResGetRoom();
 		res.setTrack(req.getTrack());
 		ChatRoom room = roomMap.get(req.getRoomAddress().getString());
-		System.out.println("GetRoom for " + req.getRoomAddress().getString());
 		if(room == null) {
 			res.setResult(ResponseResult.CHATRESULT_ADDRESSDOESNTEXIST);
 			cluster.send(res.serialize());
@@ -948,7 +940,6 @@ public class ChatApiServer {
 			cluster.send(res.serialize());
 			return;
 		}
-		System.out.println("sending room msg");
 		res.setDestRoomId(room.getRoomId());
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		cluster.send(res.serialize());		
@@ -1063,7 +1054,6 @@ public class ChatApiServer {
 			cluster.send(res.serialize());
 			return;
 		}
-		System.out.println("adding moderator");
 		room.addModerator(destAvatar);
 		res.setResult(ResponseResult.CHATRESULT_SUCCESS);
 		cluster.send(res.serialize());		

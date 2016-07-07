@@ -103,9 +103,6 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		req.deserialize(packet);
     		if(cluster.getAddress() == null) // store the clusters address at first login since api client doesnt send us any address information otherwise
     			cluster.setAddress(req.getAddress());
-    		System.out.println(req.getAddress().getString() + "+" + req.getName().getString());
-    		System.out.println(req.getLoginLocation().getString());
-    		System.out.println("Attributes: " + req.getLoginAttributes());
     		server.handleLoginAvatar(cluster, req);
     	});
     	packetTypes.put(GenericRequest.REQUEST_SENDINSTANTMESSAGE, (cluster, packet) -> {
@@ -306,7 +303,6 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		server.handleGetRoom(cluster, req);
     	});
     	packetTypes.put(GenericRequest.REQUEST_ENTERROOM, (cluster, packet) -> {
-    	//	System.out.println("got enter room req");
     		REnterRoom req = new REnterRoom();
     		req.deserialize(packet);
     		server.handleEnterRoom(cluster, req);
@@ -317,7 +313,6 @@ public class ChatApiTcpHandler extends ChannelInboundHandlerAdapter {
     		server.handleLeaveRoom(cluster, req);
     	});
     	packetTypes.put(GenericRequest.REQUEST_SENDROOMMESSAGE, (cluster, packet) -> {
-        	System.out.println("got room msg");
     		RSendRoomMessage req = new RSendRoomMessage();
     		req.deserialize(packet);
     		server.handleSendRoomMessage(cluster, req);
